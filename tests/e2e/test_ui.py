@@ -174,10 +174,45 @@ def test_flush_hidden(browser_page: Page):
     expect(browser_page.locator(".hidden-strip")).to_have_count(0)
 
 
-# --- reorder buttons ---
+# --- diff overlay content ---
+
+def test_diff_overlay_shows_message_and_diff(browser_page: Page):
+    title = browser_page.locator(
+        ".grid-cell[data-branch='main'] .commit-card .title"
+    ).filter(has_text="Add feature B").first
+    title.click()
+
+    dialog = browser_page.locator("#diff-dialog")
+    expect(dialog).to_be_visible()
+
+    # Wait for async fetch to replace placeholder "…"
+    message_el = browser_page.locator("#diff-message")
+    browser_page.wait_for_function("document.getElementById('diff-message').textContent !== '…'")
+    assert "Add feature B" in (message_el.text_content() or "")
+
+    patch_el = browser_page.locator("#diff-patch")
+    browser_page.wait_for_function("document.getElementById('diff-patch').textContent !== '…'")
+    assert len(patch_el.text_content() or "") > 0
+
+    browser_page.locator("#diff-close").click()
+    expect(dialog).not_to_be_visible()
+
+
+# --- ref badges ---
+
+def test_ref_badge_on_branch_tip(browser_page: Page):
+    # The most recent commit on main IS the main branch tip, so it should carry a branch badge.
+    tip_card = browser_page.locator(
+        ".grid-cell[data-branch='main'] .commit-card"
+    ).first
+    badge = tip_card.locator(".ref-badge.ref-branch")
+    expect(badge).to_have_count(1)
+    assert "main" in (badge.text_content() or "")
+
+
+# --- reorder buttons and functionality ---
 
 def test_reorder_up_button_exists(browser_page: Page):
-    # ↑ button should exist on commit cards
     btn = browser_page.locator(".grid-cell[data-branch='main'] .commit-card .btn-up").first
     expect(btn).to_be_visible()
 
@@ -185,3 +220,42 @@ def test_reorder_up_button_exists(browser_page: Page):
 def test_reorder_down_button_exists(browser_page: Page):
     btn = browser_page.locator(".grid-cell[data-branch='main'] .commit-card .btn-dn").first
     expect(btn).to_be_visible()
+
+
+def test_reorder_down_button_swaps_commits(browser_page: Page):
+    cards = browser_page.locator(".grid-cell[data-branch='stable/v1'] .commit-card")
+    titles_before = cards.all_inner_texts()
+    # stable/v1 has (top→bottom): [stable] Add feature C, [stable] Add feature B, Initial commit
+    # Clicking ↓ on the first card should swap it with the second.
+    cards.first.locator(".btn-dn").click()
+    browser_page.wait_for_timeout(600)
+
+    titles_after = browser_page.locator(
+        ".grid-cell[data-branch='stable/v1'] .commit-card"
+    ).all_inner_texts()
+    assert titles_after[0] != titles_before[0], "top commit should have changed after reorder"
+    # The two titles should be the same set, just swapped
+    assert set(t[:20] for t in titles_after[:2]) == set(t[:20] for t in titles_before[:2])
+
+
+# --- delete and trash ---
+
+def test_delete_commit_removes_from_grid(browser_page: Page):
+    card = browser_page.locator(".grid-cell[data-branch='main'] .commit-card").filter(
+        has_text="Add feature D"
+    ).first
+    card.locator(".btn-del").click()
+    browser_page.wait_for_timeout(600)
+
+    expect(
+        browser_page.locator(".grid-cell[data-branch='main'] .commit-card").filter(
+            has_text="Add feature D"
+        )
+    ).to_have_count(0)
+
+
+def test_deleted_commit_appears_in_trash(browser_page: Page):
+    # After the previous test deleted "Add feature D", it should appear in the trash panel.
+    trash = browser_page.locator("#trash-list .trash-item")
+    expect(trash).to_have_count(1)
+    assert "Add feature D" in (trash.first.text_content() or "")
