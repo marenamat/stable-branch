@@ -1,39 +1,105 @@
-# Stable Branch
+# stable-branch
 
-The stable-branch project is a simple python/browser tool displaying the git
-history of multiple branches at once. The order of these branches is
-configurable, as well as their beginnings.
+Browser UI for viewing and managing git history across multiple branches
+simultaneously — built for the stable branch workflow where commits are
+backported across release branches such as `main`, `stable/v1`, `stable/v2`.
 
-The tool creates an additional git worktree in /tmp (or more), with a detached
-head, to do all the operations needed without bothering the existing worktrees.
+Commits that are the same logical change on different branches are
+automatically detected and shown in the same color. You can cherry-pick,
+reorder, and delete commits by dragging.
 
-## Basic
+See [DESIGN.md](DESIGN.md) for the feature specification.
 
-Branches are displayed vertically, top newest commits, bottom oldest commits, colored.
+## Install
 
-These branches contain similar or identical commits. The tool matches these
-commits (by title, author, date) and displays them with the same color.
+Requires Python 3.12+.
 
-The display is auto-updated whenever git changes, via fanotify or inotify.
+```bash
+git clone https://github.com/yourname/stable-branch
+cd stable-branch
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+```
 
-The tool also displays tags and other branch heads pointing into the displayed trees.
+## Run
 
-## Inspection
+```bash
+python -m stable_branch /path/to/repo main stable/v1 stable/v2
+```
 
-The tool allows to display a diff of the diffs for each group of similar commits.
+Opens at `http://localhost:8000`. Pass `--open` to open the browser automatically.
 
-The tool allows to hide commits (by a button), and these will collapse into a marker which would display them in an overlay, and allow possibly unhiding them (by a button).
+## Config
 
-## Ordering / Cherry-picking
+CLI flags can also be set in `stable-branch.toml` in the current directory
+(CLI overrides TOML):
 
-The tool allows to drag-and-drop commits to reorder them in the branches.
+```toml
+repo     = "/path/to/repo"
+branches = ["main", "stable/v1", "stable/v2"]
+port     = 8000
 
-The tool allows to drag-and-drop commits between branches (by cherry-pick and/or rebase).
+[match]
+threshold = 0.80    # commit title similarity required to group commits (0–1)
+by_author = false   # also require the same author
 
-The tool allows to delete commits in branches (by a button). Deleted commits
-are stored in an additional view, from where they can be dragged and dropped
-back into the tree.
+[beginnings]
+"stable/v1" = "v1.0"   # tag or SHA where each branch starts
+"stable/v2" = "v2.0"
+```
 
-Whenever any operation fails (e.g. on merge conflict), the full output is
-displayed to the user and everything rolled back. Also the command is
-displayed, so that the user may run it manually and resolve the problem.
+All CLI options:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port N` | `8000` | Port to listen on |
+| `--config FILE` | `stable-branch.toml` | TOML config file |
+| `--match-threshold F` | `0.80` | Similarity threshold for grouping commits |
+| `--match-by-author` | off | Also require same author to match |
+| `--beginning BRANCH=REF` | — | Tag or SHA where a branch starts (repeatable) |
+| `--flush-hidden` | off | Clear all hidden commits on startup |
+| `--open` | off | Open browser tab automatically |
+
+## UI
+
+Each branch is a column. Commits run newest-to-oldest from top to bottom.
+Commits that appear on more than one branch are shown in the same color.
+
+**Viewing:**
+- Click a colored commit title to see the diff-of-diffs between its matching commits across branches.
+
+**Hiding:**
+- Click `−` on a commit to hide it. Hidden commits collapse into a thin bar.
+- Click the bar to see and restore hidden commits.
+- Click **flush hidden** in the header to show all hidden commits at once.
+- Hidden commits are remembered across restarts (stored in `.git/stable-branch-hidden`).
+
+**Moving:**
+- Drag a commit within a column to reorder it (interactive rebase).
+- Drag a commit to a different column to cherry-pick it onto that branch.
+- Drag a commit to the **deleted** panel on the right to remove it from the branch.
+- Drag a commit from the **deleted** panel back into a column to restore it.
+
+**Errors:**
+- If an operation fails (e.g. merge conflict), the exact git command and its
+  full output are shown in a dialog. Nothing is left in a broken state.
+
+## Worktree cleanup after ungraceful kill
+
+All git mutations run in a detached worktree at `/tmp/stable-branch-<pid>`,
+which is removed on clean exit. If the process is killed, remove it manually:
+
+```bash
+git worktree list
+git worktree remove --force /tmp/stable-branch-<pid>
+```
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+playwright install chromium
+
+pytest tests/test_git_ops.py tests/test_matcher.py -v   # unit tests
+pytest tests/e2e/ -v                                      # browser e2e tests
+```
