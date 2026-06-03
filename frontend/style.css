@@ -263,9 +263,11 @@ dialog {
   color: #e0e0e0;
   border: 1px solid #0f3460;
   border-radius: 8px;
+  outline: none;
   padding: 0;
   max-width: 80vw;
   max-height: 80vh;
+  min-width: min(360px, 90vw);
   overflow: hidden;
   display: flex;
   flex-direction: column;

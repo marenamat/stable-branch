@@ -265,6 +265,8 @@ function moveCommit(sha, branch, delta) {
 
 // --- diff overlay ---
 async function openCommitDialog(c) {
+  document.getElementById('hidden-dialog').close();
+  document.getElementById('error-dialog').close();
   document.getElementById('diff-title').textContent =
     `${c.short_sha} — ${c.branchName || c.branch}`;
   document.getElementById('diff-message').textContent = '…';
@@ -312,6 +314,7 @@ document.getElementById('diff-close').addEventListener('click', () =>
 
 // --- hidden overlay ---
 function openHiddenDialog(commits, branchName) {
+  document.getElementById('diff-dialog').close();
   document.getElementById('hidden-title').textContent = `hidden on ${branchName}`;
   const ul = document.getElementById('hidden-list');
   ul.innerHTML = '';
