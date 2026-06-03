@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stable-branch</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+</head>
+<body>
+  <header>
+    <span id="status">connecting…</span>
+    <button id="flush-hidden-btn" title="Show all hidden commits">flush hidden</button>
+  </header>
+
+  <main id="main">
+    <div id="branches"></div>
+    <aside id="trash-panel">
+      <h3>deleted</h3>
+      <ul id="trash-list" data-branch="__trash__"></ul>
+    </aside>
+  </main>
+
+  <!-- diff overlay -->
+  <dialog id="diff-dialog">
+    <header>
+      <strong id="diff-title">diff of diffs</strong>
+      <button id="diff-close">✕</button>
+    </header>
+    <pre id="diff-content"></pre>
+  </dialog>
+
+  <!-- error overlay -->
+  <dialog id="error-dialog">
+    <header>
+      <strong>Operation failed</strong>
+      <button id="error-close">✕</button>
+    </header>
+    <p id="error-command"></p>
+    <pre id="error-output"></pre>
+  </dialog>
+
+  <!-- hidden commits overlay -->
+  <dialog id="hidden-dialog">
+    <header>
+      <strong id="hidden-title">hidden commits</strong>
+      <button id="hidden-close">✕</button>
+    </header>
+    <ul id="hidden-list"></ul>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>
