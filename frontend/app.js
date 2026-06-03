@@ -28,11 +28,12 @@ function setStatus(text) {
 function buildRows(state) {
   const { branches, groups } = state;
 
-  // sha → commit (with branchName)
-  const shaToCommit = {};
+  // sha → {branchName: commit, ...} — handles the same SHA appearing on multiple branches
+  const shaByBranch = {};
   for (const b of branches) {
     for (const c of b.commits) {
-      shaToCommit[c.sha] = { ...c, branchName: b.name };
+      if (!shaByBranch[c.sha]) shaByBranch[c.sha] = {};
+      shaByBranch[c.sha][b.name] = { ...c, branchName: b.name };
     }
   }
 
@@ -44,28 +45,31 @@ function buildRows(state) {
     const cells = {};
     let maxTs = 0;
     for (const sha of group.commit_shas) {
-      const c = shaToCommit[sha];
-      if (c) {
-        cells[c.branchName] = c;
-        maxTs = Math.max(maxTs, c.timestamp);
+      const byBranch = shaByBranch[sha];
+      if (byBranch) {
+        for (const [branchName, c] of Object.entries(byBranch)) {
+          cells[branchName] = c;
+          maxTs = Math.max(maxTs, c.timestamp);
+        }
         usedShas.add(sha);
       }
     }
     rows.push({ groupId: group.id, colorIndex: group.color_index, cells, timestamp: maxTs });
   }
 
-  // One row per unmatched commit
+  // One row per unmatched commit, deduplicated by SHA so shared base commits appear once
+  const unmatchedBySha = {};
   for (const b of branches) {
     for (const c of b.commits) {
       if (!usedShas.has(c.sha)) {
-        rows.push({
-          groupId: null,
-          colorIndex: null,
-          cells: { [b.name]: c },
-          timestamp: c.timestamp,
-        });
+        if (!unmatchedBySha[c.sha]) unmatchedBySha[c.sha] = {};
+        unmatchedBySha[c.sha][b.name] = { ...c, branchName: b.name };
       }
     }
+  }
+  for (const byBranch of Object.values(unmatchedBySha)) {
+    const maxTs = Math.max(...Object.values(byBranch).map(c => c.timestamp));
+    rows.push({ groupId: null, colorIndex: null, cells: byBranch, timestamp: maxTs });
   }
 
   rows.sort((a, b) => b.timestamp - a.timestamp);
@@ -86,6 +90,7 @@ function renderGrid() {
   const n = branches.length;
   const cols = `repeat(${n}, minmax(180px, 1fr))`;
   container.style.gridTemplateColumns = cols;
+  container.style.minWidth = `${n * 180}px`;
 
   container.innerHTML = '';
 

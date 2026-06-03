@@ -57,6 +57,8 @@ def assign_groups(
 
                 if best_sha2 is None:
                     continue
+                if best_sha2 == c1.sha:
+                    continue  # same commit present on both branches — not a backport pair
 
                 matched_c2.add(best_sha2)
                 g1 = sha_to_group.get(c1.sha)

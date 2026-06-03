@@ -72,6 +72,6 @@ def browser_page(playwright, live_server):
     browser = playwright.chromium.launch()
     page = browser.new_page()
     page.goto(live_server)
-    page.wait_for_selector(".branch-col", timeout=5000)
+    page.wait_for_selector(".branch-header", timeout=5000)
     yield page
     browser.close()

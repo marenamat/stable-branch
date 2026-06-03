@@ -77,7 +77,10 @@ def main():
     app = create_app(config)
 
     url = f"http://127.0.0.1:{config.port}"
+    branch_src = "command line" if args.branches else f"config {toml_path}" if toml_path.exists() else "command line"
     print(f"stable-branch listening on {url}", flush=True)
+    print(f"  repo: {config.repo_path}", flush=True)
+    print(f"  branches ({branch_src}): {', '.join(config.branches)}", flush=True)
     if config.open_browser:
         webbrowser.open(url)
 
