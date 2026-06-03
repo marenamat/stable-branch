@@ -1,8 +1,6 @@
 import atexit
 import os
-import signal
 import subprocess
-import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,12 +19,6 @@ class GitWorktree:
         self.wt = Path(f"/tmp/stable-branch-{os.getpid()}")
         self._create_wt()
         atexit.register(self.cleanup)
-        signal.signal(signal.SIGTERM, self._on_signal)
-        signal.signal(signal.SIGINT, self._on_signal)
-
-    def _on_signal(self, signum, frame):
-        self.cleanup()
-        sys.exit(0)
 
     def _git(self, *args, cwd=None) -> subprocess.CompletedProcess:
         return subprocess.run(
