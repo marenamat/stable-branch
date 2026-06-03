@@ -123,7 +123,7 @@ function renderGrid() {
       } else {
         // Empty cell — drop target for cherry-pick
         cell.classList.add('empty');
-        if (row.groupId) setupCherryPickTarget(cell, row, b.name);
+        setupCherryPickTarget(cell, row, b.name);
       }
 
       container.appendChild(cell);

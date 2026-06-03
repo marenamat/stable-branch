@@ -1,5 +1,6 @@
 import asyncio
 import json
+import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,8 +22,19 @@ _ws_clients: set[WebSocket] = set()
 _change_queue: asyncio.Queue
 
 
+def _git_common_dir(repo_path: str) -> Path:
+    r = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"],
+        cwd=repo_path, capture_output=True, text=True,
+    )
+    if r.returncode == 0 and r.stdout.strip():
+        d = Path(r.stdout.strip())
+        return (Path(repo_path) / d).resolve()
+    return Path(repo_path) / ".git"
+
+
 def _hidden_path(config: Config) -> Path:
-    return Path(config.repo_path) / ".git" / "stable-branch-hidden"
+    return _git_common_dir(config.repo_path) / "stable-branch-hidden"
 
 
 def _load_hidden(config: Config) -> set[str]:
