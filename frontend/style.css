@@ -33,6 +33,16 @@ header {
 }
 #flush-hidden-btn:hover { color: #fff; }
 
+/* === disconnected banner === */
+#disconnected-banner {
+  background: #7e2a2a;
+  color: #ffcccc;
+  text-align: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
 /* === main layout === */
 #main {
   display: flex;

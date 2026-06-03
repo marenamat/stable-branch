@@ -7,10 +7,12 @@ let _dragSha = null;
 let _dragBranch = null;
 
 // --- WebSocket ---
+let _connected = false;
+
 const ws = new WebSocket(`ws://${location.host}/ws`);
-ws.onopen = () => setStatus('connected');
-ws.onerror = () => setStatus('connection error');
-ws.onclose = () => setStatus('disconnected');
+ws.onopen = () => { _connected = true; setConnected(true); };
+ws.onerror = () => setConnected(false);
+ws.onclose = () => { _connected = false; setConnected(false); };
 ws.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
   if (msg.error) { showError('Server error', msg.error, ''); return; }
@@ -18,8 +20,9 @@ ws.onmessage = (ev) => {
   render();
 };
 
-function setStatus(text) {
-  document.getElementById('status').textContent = text;
+function setConnected(ok) {
+  document.getElementById('status').textContent = ok ? 'connected' : 'disconnected';
+  document.getElementById('disconnected-banner').hidden = ok;
 }
 
 // --- build rows ---
@@ -337,11 +340,13 @@ function renderTrash() {
 
 // --- flush hidden ---
 document.getElementById('flush-hidden-btn').addEventListener('click', async () => {
+  if (!_connected) return;
   await fetch('/api/hidden/flush', { method: 'POST' });
 });
 
 // --- API helper ---
 async function postOp(body) {
+  if (!_connected) return;
   const res = await fetch('/api/operation', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
