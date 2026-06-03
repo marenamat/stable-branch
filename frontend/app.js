@@ -147,12 +147,10 @@ function makeCommitCard(c, row) {
   sha.textContent = c.short_sha;
 
   const title = document.createElement('span');
-  title.className = 'title' + (c.group_id ? ' has-group' : '');
+  title.className = 'title';
   title.textContent = c.title;
   title.title = c.author;
-  if (c.group_id) {
-    title.addEventListener('click', (e) => { e.stopPropagation(); openDiffDialog(c); });
-  }
+  title.addEventListener('click', (e) => { e.stopPropagation(); openCommitDialog(c); });
 
   const actions = document.createElement('span');
   actions.className = 'actions';
@@ -257,20 +255,35 @@ function moveCommit(sha, branch, delta) {
 }
 
 // --- diff overlay ---
-async function openDiffDialog(c) {
-  const group = _state.groups.find(g => g.id === c.group_id);
-  if (!group) return;
-  const others = group.commit_shas.filter(s => s !== c.sha);
-  if (!others.length) return;
-
-  const sha2 = others[0];
-  const res = await fetch(`/api/diff/${c.sha}/${sha2}`);
-  const { diff } = await res.json();
-
+async function openCommitDialog(c) {
   document.getElementById('diff-title').textContent =
-    `${c.short_sha} ↔ ${sha2.slice(0, 8)}`;
-  document.getElementById('diff-content').innerHTML = colorDiff(diff || '(no diff)');
+    `${c.short_sha} — ${c.branchName || c.branch}`;
+  document.getElementById('diff-message').textContent = '…';
+  document.getElementById('diff-patch').textContent = '…';
+  document.getElementById('diff-rangediff-section').hidden = true;
   document.getElementById('diff-dialog').showModal();
+
+  const res = await fetch(`/api/commit/${c.sha}`);
+  const { message, diff } = await res.json();
+  document.getElementById('diff-message').textContent = message || '(no message)';
+  document.getElementById('diff-patch').innerHTML = colorDiff(diff || '(empty diff)');
+
+  if (c.group_id) {
+    const group = _state.groups.find(g => g.id === c.group_id);
+    if (group) {
+      const others = group.commit_shas.filter(s => s !== c.sha);
+      if (others.length) {
+        const sha2 = others[0];
+        document.getElementById('diff-rangediff-label').textContent =
+          `Range-diff vs ${sha2.slice(0, 8)}`;
+        document.getElementById('diff-rangediff-section').hidden = false;
+        document.getElementById('diff-rangediff').textContent = '…';
+        const rr = await fetch(`/api/diff/${c.sha}/${sha2}`);
+        const { diff: rdiff } = await rr.json();
+        document.getElementById('diff-rangediff').innerHTML = colorDiff(rdiff || '(no diff)');
+      }
+    }
+  }
 }
 
 function colorDiff(text) {

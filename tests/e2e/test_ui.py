@@ -125,7 +125,7 @@ def test_unhide_via_overlay(browser_page: Page):
 
 def test_diff_overlay_opens_and_closes(browser_page: Page):
     title = browser_page.locator(
-        ".grid-cell[data-branch='main'] .commit-card .title.has-group"
+        ".grid-cell[data-branch='main'] .commit-card .title"
     ).first
     title.click()
     browser_page.wait_for_timeout(400)

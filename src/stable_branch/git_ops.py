@@ -83,6 +83,14 @@ class GitWorktree:
         r = self._git("tag", "--points-at", branch, cwd=self.repo)
         return [t for t in r.stdout.splitlines() if t]
 
+    def commit_message(self, sha: str) -> str:
+        r = self._git("log", "-1", "--format=%B", sha, cwd=self.repo)
+        return r.stdout.strip()
+
+    def commit_diff(self, sha: str) -> str:
+        r = self._git("diff-tree", "--no-commit-id", "-p", "-r", sha, cwd=self.repo)
+        return r.stdout
+
     def range_diff(self, sha1: str, sha2: str) -> str:
         r = self._git(
             "range-diff", f"{sha1}^..{sha1}", f"{sha2}^..{sha2}",

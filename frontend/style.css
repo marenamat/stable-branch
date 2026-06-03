@@ -153,11 +153,11 @@ header {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.commit-card .title.has-group {
   cursor: pointer;
   text-decoration: underline dotted;
+  text-underline-offset: 2px;
 }
+.commit-card .title:hover { color: #fff; }
 .commit-card .actions {
   display: flex;
   gap: 2px;
@@ -315,6 +315,37 @@ dialog ul li button:hover { color: #fff; }
   background: #0a1020;
   border-bottom: 1px solid #1a3060;
   flex-shrink: 0;
+}
+
+/* === commit detail dialog === */
+#diff-dialog {
+  border: 2px solid #3a8aff;
+  box-shadow: 0 4px 32px rgba(58, 138, 255, 0.28);
+  min-width: min(680px, 94vw);
+  max-width: 92vw;
+  max-height: 88vh;
+}
+#diff-dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
+#diff-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.diff-section { border-bottom: 1px solid #1a3060; }
+.diff-section:last-child { border-bottom: none; }
+.diff-section-label {
+  padding: 3px 12px;
+  font-size: 10px;
+  color: #5a7a9a;
+  background: #0d1828;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+#diff-dialog pre {
+  flex: none;
+  overflow-x: auto;
+  min-width: 0;
+  padding: 10px 12px;
 }
 
 /* === diff syntax coloring === */

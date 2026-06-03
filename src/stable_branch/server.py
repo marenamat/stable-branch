@@ -205,6 +205,13 @@ def create_app(config: Config) -> FastAPI:
             "command": result.command,
         }
 
+    @app.get("/api/commit/{sha}")
+    async def commit_detail(sha: str):
+        return {
+            "message": _wt.commit_message(sha),
+            "diff": _wt.commit_diff(sha),
+        }
+
     @app.get("/api/diff/{sha1}/{sha2}")
     async def diff(sha1: str, sha2: str):
         text = _wt.range_diff(sha1, sha2)

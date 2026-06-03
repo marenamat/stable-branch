@@ -30,10 +30,23 @@
   <!-- diff overlay -->
   <dialog id="diff-dialog">
     <header>
-      <strong id="diff-title">diff of diffs</strong>
+      <strong id="diff-title">commit</strong>
       <button id="diff-close">✕</button>
     </header>
-    <pre id="diff-content"></pre>
+    <div id="diff-scroll">
+      <div class="diff-section">
+        <div class="diff-section-label">Message</div>
+        <pre id="diff-message"></pre>
+      </div>
+      <div class="diff-section">
+        <div class="diff-section-label">Diff</div>
+        <pre id="diff-patch"></pre>
+      </div>
+      <div class="diff-section" id="diff-rangediff-section" hidden>
+        <div class="diff-section-label" id="diff-rangediff-label">Range-diff</div>
+        <pre id="diff-rangediff"></pre>
+      </div>
+    </div>
   </dialog>
 
   <!-- error overlay -->
