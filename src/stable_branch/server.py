@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import signal
 import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,6 +22,8 @@ _config: Config
 _wt: GitWorktree
 _ws_clients: set[WebSocket] = set()
 _change_queue: asyncio.Queue
+_shutdown_task: asyncio.Task | None = None
+_IDLE_SHUTDOWN_SECS = 30
 
 
 def _git_common_dir(repo_path: str) -> Path:
@@ -111,6 +115,12 @@ async def _broadcast(payload: dict) -> None:
     _ws_clients.difference_update(dead)
 
 
+async def _idle_shutdown() -> None:
+    await asyncio.sleep(_IDLE_SHUTDOWN_SECS)
+    print(f"All clients gone for {_IDLE_SHUTDOWN_SECS}s — shutting down.", flush=True)
+    os.kill(os.getpid(), signal.SIGTERM)
+
+
 async def _watch_loop() -> None:
     DEBOUNCE = 0.2
     while True:
@@ -141,6 +151,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    if _shutdown_task and not _shutdown_task.done():
+        _shutdown_task.cancel()
     observer.stop()
     observer.join()
     task.cancel()
@@ -230,7 +242,11 @@ def create_app(config: Config) -> FastAPI:
 
     @app.websocket("/ws")
     async def websocket(ws: WebSocket):
+        global _shutdown_task
         await ws.accept()
+        if _shutdown_task and not _shutdown_task.done():
+            _shutdown_task.cancel()
+            _shutdown_task = None
         _ws_clients.add(ws)
         try:
             await ws.send_text(json.dumps(_build_state()))
@@ -240,5 +256,7 @@ def create_app(config: Config) -> FastAPI:
             pass
         finally:
             _ws_clients.discard(ws)
+            if not _ws_clients:
+                _shutdown_task = asyncio.create_task(_idle_shutdown())
 
     return app
