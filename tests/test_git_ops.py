@@ -136,6 +136,89 @@ def test_reorder_commits(wt, tmp_repo):
     assert commits_after[1]["title"] == commits_before[0]["title"]
 
 
+# --- commit_message ---
+
+def test_commit_message(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    sha_e = next(c["sha"] for c in commits if c["title"] == "Add E")
+    msg = wt.commit_message(sha_e)
+    assert "Add E" in msg
+
+
+def test_commit_message_full_body(wt, tmp_repo):
+    git(tmp_repo, "checkout", "main")
+    (tmp_repo / "msg_test.txt").write_text("content\n")
+    git(tmp_repo, "add", "msg_test.txt")
+    git(tmp_repo, "commit", "-m", "Subject line\n\nBody paragraph here.")
+    commits = wt.get_commits("main")
+    sha = commits[0]["sha"]
+    msg = wt.commit_message(sha)
+    assert "Subject line" in msg
+    assert "Body paragraph here." in msg
+
+
+# --- commit_diff ---
+
+def test_commit_diff_contains_added_content(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    sha_b = next(c["sha"] for c in commits if c["title"] == "Add B")
+    diff = wt.commit_diff(sha_b)
+    assert "+Add B" in diff
+
+
+def test_commit_diff_is_string(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    sha = commits[0]["sha"]
+    diff = wt.commit_diff(sha)
+    assert isinstance(diff, str)
+    assert len(diff) > 0
+
+
+# --- refs_by_sha ---
+
+def test_refs_by_sha_branch_tip(wt, tmp_repo):
+    main_tip = git(tmp_repo, "rev-parse", "main").stdout.strip()
+    refs = wt.refs_by_sha({main_tip})
+    assert main_tip in refs
+    branch_refs = [r for r in refs[main_tip] if r["type"] == "branch"]
+    assert any(r["name"] == "main" for r in branch_refs)
+
+
+def test_refs_by_sha_lightweight_tag(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    sha_d = next(c["sha"] for c in commits if c["title"] == "Add D")
+    git(tmp_repo, "tag", "v1.0-lw", sha_d)
+    refs = wt.refs_by_sha({sha_d})
+    assert sha_d in refs
+    tag_refs = [r for r in refs[sha_d] if r["type"] == "tag"]
+    assert any(r["name"] == "v1.0-lw" for r in tag_refs)
+
+
+def test_refs_by_sha_annotated_tag(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    sha_c = next(c["sha"] for c in commits if c["title"] == "Add C")
+    git(tmp_repo, "tag", "-a", "v0.9", sha_c, "-m", "Release v0.9")
+    refs = wt.refs_by_sha({sha_c})
+    assert sha_c in refs
+    tag_refs = [r for r in refs[sha_c] if r["type"] == "tag"]
+    assert any(r["name"] == "v0.9" for r in tag_refs)
+
+
+def test_refs_by_sha_unknown_sha(wt, tmp_repo):
+    refs = wt.refs_by_sha({"0" * 40})
+    assert refs == {}
+
+
+def test_refs_by_sha_multiple_shas(wt, tmp_repo):
+    main_tip = git(tmp_repo, "rev-parse", "main").stdout.strip()
+    v1_tip = git(tmp_repo, "rev-parse", "stable/v1").stdout.strip()
+    refs = wt.refs_by_sha({main_tip, v1_tip})
+    main_names = [r["name"] for r in refs.get(main_tip, [])]
+    v1_names = [r["name"] for r in refs.get(v1_tip, [])]
+    assert "main" in main_names
+    assert "stable/v1" in v1_names
+
+
 # --- worktree lifecycle ---
 
 def test_cleanup(tmp_repo):

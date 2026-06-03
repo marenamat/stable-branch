@@ -77,7 +77,7 @@ class GitWorktree:
 
         r = self._git(
             "for-each-ref", "refs/heads",
-            "--format=%(objectname)%x09%(refname:short)",
+            "--format=%(objectname)%09%(refname:short)",
             cwd=self.repo,
         )
         for line in r.stdout.splitlines():
@@ -88,7 +88,7 @@ class GitWorktree:
         # %(*objectname) is the dereferenced commit SHA for annotated tags; empty for lightweight
         r = self._git(
             "for-each-ref", "refs/tags",
-            "--format=%(objectname)%x09%(*objectname)%x09%(refname:short)",
+            "--format=%(objectname)%09%(*objectname)%09%(refname:short)",
             cwd=self.repo,
         )
         for line in r.stdout.splitlines():

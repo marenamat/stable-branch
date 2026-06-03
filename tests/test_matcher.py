@@ -123,3 +123,27 @@ def test_by_author_different():
     c2.author = "bob"
     groups = assign_groups([_branch("main", [c1]), _branch("stable/v1", [c2])], by_author=True)
     assert len(groups) == 0
+
+
+# --- same SHA (shared base commit) ---
+
+def test_same_sha_not_grouped():
+    """Commits with identical SHAs (shared base) must not be grouped as backport pairs."""
+    c1 = _commit("base", "Initial commit", "main")
+    c2 = _commit("base", "Initial commit", "stable/v1")
+    groups = assign_groups([_branch("main", [c1]), _branch("stable/v1", [c2])])
+    assert len(groups) == 0
+
+
+def test_same_sha_not_grouped_with_other_matches():
+    """Shared base commits don't produce spurious groups; real backports still match."""
+    c_base_main = _commit("base", "Initial commit", "main")
+    c_base_v1 = _commit("base", "Initial commit", "stable/v1")
+    c1 = _commit("aaa", "Fix crash", "main")
+    c2 = _commit("bbb", "[stable] Fix crash", "stable/v1")
+    groups = assign_groups([
+        _branch("main", [c1, c_base_main]),
+        _branch("stable/v1", [c2, c_base_v1]),
+    ])
+    assert len(groups) == 1
+    assert set(groups[0].commit_shas) == {"aaa", "bbb"}
