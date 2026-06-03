@@ -1,4 +1,5 @@
 import argparse
+import socket
 import sys
 import tomllib
 import webbrowser
@@ -8,6 +9,12 @@ import uvicorn
 
 from .models import Config
 from .server import create_app
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 def _load_toml(path: Path) -> dict:
@@ -24,7 +31,7 @@ def main():
     p.add_argument("branches", nargs="*", help="Branch names to display")
     p.add_argument("--config", metavar="FILE", default="stable-branch.toml",
                    help="TOML config file (default: stable-branch.toml)")
-    p.add_argument("--port", type=int, help="Port to listen on (default: 8000)")
+    p.add_argument("--port", type=int, help="Port to listen on (default: random free port)")
     p.add_argument("--match-threshold", type=float, dest="match_threshold",
                    help="Commit similarity threshold 0–1 (default: 0.80)")
     p.add_argument("--match-by-author", action="store_true", dest="match_by_author",
@@ -59,10 +66,12 @@ def main():
             k, v = item.split("=", 1)
             beginnings_cfg[k] = v
 
+    port = args.port or cfg.get("port") or _free_port()
+
     config = Config(
         repo_path=str(Path(repo).resolve()),
         branches=branches,
-        port=args.port or cfg.get("port", 8000),
+        port=port,
         match_threshold=(
             args.match_threshold
             if args.match_threshold is not None
