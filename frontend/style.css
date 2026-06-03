@@ -147,6 +147,21 @@ header {
   min-width: 58px;
   flex-shrink: 0;
 }
+.ref-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  align-self: center;
+}
+.ref-tag    { background: #3a2e00; color: #f1c40f; border: 1px solid #6a5400; }
+.ref-branch { background: #00301a; color: #4caf50; border: 1px solid #006030; }
+
 .commit-card .title {
   flex: 1;
   font-size: 12px;

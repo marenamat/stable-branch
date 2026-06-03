@@ -70,6 +70,9 @@ def _build_state() -> dict:
 
     groups = assign_groups(branches, _config.match_threshold, _config.match_by_author)
 
+    all_shas = {c.sha for b in branches for c in b.commits}
+    refs = _wt.refs_by_sha(all_shas)
+
     return {
         "branches": [
             {
@@ -84,6 +87,7 @@ def _build_state() -> dict:
                         "group_id": c.group_id,
                         "color_index": c.color_index,
                         "hidden": c.hidden,
+                        "refs": refs.get(c.sha, []),
                     }
                     for c in b.commits
                 ],

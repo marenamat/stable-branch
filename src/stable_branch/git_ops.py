@@ -79,9 +79,36 @@ class GitWorktree:
             })
         return commits
 
-    def get_tags_at(self, branch: str) -> list[str]:
-        r = self._git("tag", "--points-at", branch, cwd=self.repo)
-        return [t for t in r.stdout.splitlines() if t]
+    def refs_by_sha(self, sha_set: set[str]) -> dict[str, list[dict]]:
+        """Return {sha: [{"name": ..., "type": "branch"|"tag"}, ...]} for all refs in sha_set."""
+        result: dict[str, list[dict]] = {}
+
+        r = self._git(
+            "for-each-ref", "refs/heads",
+            "--format=%(objectname)%x09%(refname:short)",
+            cwd=self.repo,
+        )
+        for line in r.stdout.splitlines():
+            sha, _, name = line.partition("\t")
+            if sha in sha_set:
+                result.setdefault(sha, []).append({"name": name, "type": "branch"})
+
+        # %(*objectname) is the dereferenced commit SHA for annotated tags; empty for lightweight
+        r = self._git(
+            "for-each-ref", "refs/tags",
+            "--format=%(objectname)%x09%(*objectname)%x09%(refname:short)",
+            cwd=self.repo,
+        )
+        for line in r.stdout.splitlines():
+            parts = line.split("\t", 2)
+            if len(parts) != 3:
+                continue
+            obj_sha, deref_sha, name = parts
+            commit_sha = deref_sha if deref_sha else obj_sha
+            if commit_sha in sha_set:
+                result.setdefault(commit_sha, []).append({"name": name, "type": "tag"})
+
+        return result
 
     def commit_message(self, sha: str) -> str:
         r = self._git("log", "-1", "--format=%B", sha, cwd=self.repo)

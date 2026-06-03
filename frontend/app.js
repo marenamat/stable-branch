@@ -193,7 +193,16 @@ function makeCommitCard(c, row) {
   });
 
   actions.append(upBtn, dnBtn, hideBtn, delBtn);
-  card.append(sha, title, actions);
+
+  const badges = (c.refs || []).map(ref => {
+    const b = document.createElement('span');
+    b.className = `ref-badge ref-${ref.type}`;
+    b.textContent = ref.name;
+    b.title = ref.type === 'tag' ? `tag: ${ref.name}` : `branch: ${ref.name}`;
+    return b;
+  });
+
+  card.append(sha, ...badges, title, actions);
 
   // Drag source for cherry-pick
   card.addEventListener('dragstart', (e) => {
