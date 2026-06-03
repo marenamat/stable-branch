@@ -1,0 +1,13 @@
+local-claude-context
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.playwright/
+node_modules/
+/tmp/stable-branch-*/
+stable-branch.toml.local

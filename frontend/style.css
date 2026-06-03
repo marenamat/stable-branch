@@ -39,63 +39,103 @@ header {
   flex: 1;
   overflow: hidden;
 }
-#branches {
-  display: flex;
+
+/* === grid scroll area === */
+#grid-scroll {
   flex: 1;
-  gap: 8px;
+  overflow: auto;
   padding: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 
-/* === branch column === */
-.branch-col {
-  display: flex;
-  flex-direction: column;
-  min-width: 220px;
-  flex: 1;
-  background: #16213e;
-  border: 1px solid #0f3460;
-  border-radius: 6px;
-  overflow: hidden;
+/* === grid container ===
+   JS sets grid-template-columns to "repeat(N, 1fr)" where N = branch count.
+   Row 1 = branch headers; rows 2+ = commit rows (one per logical group or lone commit).
+*/
+#grid-container {
+  display: grid;
+  gap: 0;
+  min-width: max-content;
 }
+
+/* === branch header cells (row 1) === */
 .branch-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   padding: 6px 10px;
   background: #0f3460;
   font-weight: bold;
   font-size: 12px;
+  border-right: 1px solid #1a3a6e;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.commit-list {
+.branch-header:last-child { border-right: none; }
+
+/* === grid cells (rows 2+) === */
+.grid-cell {
+  padding: 2px 4px;
+  border-right: 1px solid #0d1a30;
+  border-bottom: 1px solid #0d1a30;
+  min-height: 34px;
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: relative;
+}
+.grid-cell:last-child { border-right: none; }
+
+/* row background tint by group (shared across all cells in the row) */
+.row-group-0  { background: rgba(231, 76,  60,  0.07); }
+.row-group-1  { background: rgba(230,126,  34,  0.07); }
+.row-group-2  { background: rgba(241,196,  15,  0.07); }
+.row-group-3  { background: rgba( 46,204, 113,  0.07); }
+.row-group-4  { background: rgba( 26,188, 156,  0.07); }
+.row-group-5  { background: rgba( 52,152, 219,  0.07); }
+.row-group-6  { background: rgba(155, 89, 182,  0.07); }
+.row-group-7  { background: rgba(233, 30,  99,  0.07); }
+.row-group-8  { background: rgba(255, 87,  34,  0.07); }
+.row-group-9  { background: rgba(255,152,   0,  0.07); }
+.row-group-10 { background: rgba(205,220,  57,  0.07); }
+.row-group-11 { background: rgba( 76,175,  80,  0.07); }
+.row-group-12 { background: rgba(  0,188, 212,  0.07); }
+.row-group-13 { background: rgba( 33,150, 243,  0.07); }
+.row-group-14 { background: rgba(103, 58, 183,  0.07); }
+.row-group-15 { background: rgba(240, 98, 146,  0.07); }
+
+/* empty cell: drop target for cherry-pick */
+.grid-cell.empty { cursor: copy; }
+.grid-cell.empty::after {
+  content: '';
+  display: block;
   flex: 1;
-  overflow-y: auto;
-  padding: 4px;
-  min-height: 60px;
+  border: 1px dashed transparent;
+  border-radius: 3px;
+  transition: border-color 0.1s;
 }
+.grid-cell.empty.drag-over::after { border-color: #3a8aff; }
 
 /* === commit card === */
 .commit-card {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
-  padding: 5px 7px;
-  margin-bottom: 3px;
-  border-radius: 4px;
+  gap: 5px;
+  padding: 4px 6px;
+  border-radius: 3px;
   border-left: 3px solid transparent;
   background: #1e2a4a;
-  cursor: grab;
   user-select: none;
+  cursor: grab;
+  width: 100%;
 }
 .commit-card:active { cursor: grabbing; }
-.commit-card.sortable-ghost { opacity: 0.3; }
-.commit-card.sortable-drag { opacity: 0.9; }
+.commit-card.drag-source { opacity: 0.4; }
 
 .commit-card .sha {
   font-size: 10px;
   color: #888;
   min-width: 58px;
+  flex-shrink: 0;
 }
 .commit-card .title {
   flex: 1;
@@ -103,45 +143,32 @@ header {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: default;
 }
-.commit-card .title.has-group { cursor: pointer; text-decoration: underline dotted; }
-.commit-card .author { font-size: 10px; color: #777; }
-.commit-card .actions { display: flex; gap: 3px; }
-.commit-card .btn-hide,
-.commit-card .btn-del {
+.commit-card .title.has-group {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.commit-card .actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.commit-card button {
   font-size: 10px;
-  padding: 1px 4px;
+  padding: 1px 3px;
   border: none;
   border-radius: 2px;
   cursor: pointer;
   background: #2a3a5e;
   color: #aaa;
+  line-height: 1.2;
 }
-.commit-card .btn-hide:hover { background: #3a4a7e; color: #fff; }
+.commit-card button:hover { background: #3a4a7e; color: #fff; }
 .commit-card .btn-del:hover  { background: #7e2a2a; color: #fff; }
+.commit-card .btn-up:hover,
+.commit-card .btn-dn:hover   { background: #2a5a3e; color: #fff; }
 
-/* === hidden marker === */
-.hidden-marker {
-  height: 8px;
-  margin-bottom: 3px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(
-    90deg, #2a3a5e 0px, #2a3a5e 4px, #1e2a4a 4px, #1e2a4a 8px
-  );
-  cursor: pointer;
-  position: relative;
-}
-.hidden-marker .hidden-count {
-  position: absolute;
-  right: 4px;
-  top: -2px;
-  font-size: 9px;
-  color: #aaa;
-  line-height: 1;
-}
-
-/* === 16-color group palette === */
+/* === 16-color group palette (commit card left border) === */
 .group-0  { border-left-color: #e74c3c; }
 .group-1  { border-left-color: #e67e22; }
 .group-2  { border-left-color: #f1c40f; }
@@ -159,6 +186,19 @@ header {
 .group-14 { border-left-color: #673ab7; }
 .group-15 { border-left-color: #f06292; }
 
+/* === hidden strip === */
+.hidden-strip {
+  height: 6px;
+  width: 100%;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    90deg, #2a3a5e 0px, #2a3a5e 4px, #1e2a4a 4px, #1e2a4a 8px
+  );
+  cursor: pointer;
+  margin: 2px 0;
+  flex-shrink: 0;
+}
+
 /* === trash panel === */
 #trash-panel {
   width: 200px;
@@ -173,14 +213,24 @@ header {
   background: #0f3460;
   font-size: 12px;
   font-weight: bold;
+  flex-shrink: 0;
 }
 #trash-list {
   flex: 1;
   overflow-y: auto;
   padding: 4px;
   list-style: none;
-  min-height: 40px;
 }
+.trash-item {
+  font-size: 11px;
+  padding: 3px 6px;
+  border-bottom: 1px solid #1a3060;
+  color: #888;
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+}
+.trash-item .sha { color: #555; min-width: 54px; }
 
 /* === dialogs === */
 dialog {
@@ -203,6 +253,7 @@ dialog header {
   padding: 8px 12px;
   background: #0f3460;
   border-bottom: 1px solid #1a3060;
+  flex-shrink: 0;
 }
 dialog header button {
   background: none;
@@ -219,6 +270,7 @@ dialog pre {
   font-size: 12px;
   line-height: 1.5;
   white-space: pre;
+  min-width: 500px;
 }
 dialog ul {
   list-style: none;
@@ -245,7 +297,6 @@ dialog ul li button {
   cursor: pointer;
 }
 dialog ul li button:hover { color: #fff; }
-
 #error-command {
   padding: 8px 12px;
   font-family: monospace;
@@ -253,9 +304,10 @@ dialog ul li button:hover { color: #fff; }
   color: #f1c40f;
   background: #0a1020;
   border-bottom: 1px solid #1a3060;
+  flex-shrink: 0;
 }
 
-/* === diff coloring (ANSI-style via spans) === */
+/* === diff syntax coloring === */
 .diff-add { color: #2ecc71; }
 .diff-del { color: #e74c3c; }
 .diff-ctx { color: #888; }

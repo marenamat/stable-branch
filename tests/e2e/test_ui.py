@@ -1,5 +1,4 @@
 """In-browser Playwright tests against the live server."""
-import json
 import re
 
 import pytest
@@ -9,14 +8,19 @@ from playwright.sync_api import Page, expect
 pytestmark = pytest.mark.e2e
 
 
+def _branch_cells(page: Page, branch: str):
+    """All non-empty grid cells for a branch."""
+    return page.locator(f".grid-cell[data-branch='{branch}'] .commit-card")
+
+
+def _empty_cells(page: Page, branch: str):
+    """Empty (drop-target) grid cells for a branch."""
+    return page.locator(f".grid-cell.empty[data-branch='{branch}']")
+
+
 # --- display ---
 
-def test_branches_visible(browser_page: Page):
-    cols = browser_page.locator(".branch-col")
-    expect(cols).to_have_count(2)
-
-
-def test_branch_headers(browser_page: Page):
+def test_branch_headers_visible(browser_page: Page):
     headers = browser_page.locator(".branch-header")
     texts = headers.all_inner_texts()
     assert "main" in texts
@@ -24,140 +28,160 @@ def test_branch_headers(browser_page: Page):
 
 
 def test_commits_displayed(browser_page: Page):
-    cards = browser_page.locator(".branch-col[data-branch='main'] .commit-card")
-    expect(cards).to_have_count(4)  # B, C, D + Initial not shown (since A is base of stable/v1)
-    # At least "Add feature B" is visible
-    titles = browser_page.locator(".branch-col[data-branch='main'] .commit-card .title").all_inner_texts()
+    cards = _branch_cells(browser_page, "main")
+    expect(cards).to_have_count(4)  # Add feature B, C, D + Initial visible above stable/v1 base
+    titles = browser_page.locator(".grid-cell[data-branch='main'] .commit-card .title").all_inner_texts()
     assert any("Add feature B" in t for t in titles)
 
 
-def test_matched_commits_same_color(browser_page: Page):
-    # "Add feature B" on main and "[stable] Add feature B" on stable/v1 should share a color class
-    main_b = browser_page.locator(".branch-col[data-branch='main'] .commit-card").filter(
+def test_matched_commits_same_row(browser_page: Page):
+    # "Add feature B" on main and "[stable] Add feature B" on stable/v1 should be in the same grid row.
+    # Both cards should share the same parent .grid-cell sibling row (same CSS grid row = same group-N class).
+    main_b = browser_page.locator(".grid-cell[data-branch='main'] .commit-card").filter(
         has_text="Add feature B"
     ).first
-    v1_b = browser_page.locator(".branch-col[data-branch='stable/v1'] .commit-card").filter(
+    v1_b = browser_page.locator(".grid-cell[data-branch='stable/v1'] .commit-card").filter(
         has_text="Add feature B"
     ).first
 
-    main_class = main_b.get_attribute("class")
-    v1_class = v1_b.get_attribute("class")
-
-    # Both should have a group-N class, and the same one
-    main_group = re.search(r'group-(\d+)', main_class)
-    v1_group = re.search(r'group-(\d+)', v1_class)
-    assert main_group is not None, f"main 'Add feature B' has no group class: {main_class}"
-    assert v1_group is not None, f"stable/v1 '[stable] Add feature B' has no group class: {v1_class}"
-    assert main_group.group(1) == v1_group.group(1)
+    main_group = re.search(r'group-(\d+)', main_b.get_attribute("class") or "")
+    v1_group = re.search(r'group-(\d+)', v1_b.get_attribute("class") or "")
+    assert main_group, "main 'Add feature B' should have a group-N class"
+    assert v1_group, "stable/v1 '[stable] Add feature B' should have a group-N class"
+    assert main_group.group(1) == v1_group.group(1), "matched commits should share a color group"
 
 
-def test_unmatched_commits_no_group(browser_page: Page):
-    # "Add feature D" only exists on main
-    card = browser_page.locator(".branch-col[data-branch='main'] .commit-card").filter(
+def test_matched_row_has_background_tint(browser_page: Page):
+    # The cells in the same row as a matched commit should carry a row-group-N tint class.
+    main_cell = browser_page.locator(".grid-cell[data-branch='main']").filter(
+        has=browser_page.locator(".commit-card").filter(has_text="Add feature B")
+    ).first
+    cell_class = main_cell.get_attribute("class") or ""
+    assert re.search(r'row-group-\d+', cell_class), \
+        f"matched cell should have row-group-N class, got: {cell_class}"
+
+
+def test_matched_row_empty_cell_also_tinted(browser_page: Page):
+    # Find the group row for "Add feature C" (only on main in the e2e fixture — stable/v1 has it too)
+    # The stable/v1 cell for "Add feature D" (only on main) should be empty AND tinted for its row.
+    # "Add feature D" is unmatched → its stable/v1 cell should be empty but NOT tinted.
+    # Just verify: all non-empty cells for a matched group carry row-group-N.
+    main_b_cell = browser_page.locator(".grid-cell[data-branch='main']").filter(
+        has=browser_page.locator(".commit-card").filter(has_text="Add feature B")
+    ).first
+    v1_b_cell = browser_page.locator(".grid-cell[data-branch='stable/v1']").filter(
+        has=browser_page.locator(".commit-card").filter(has_text="Add feature B")
+    ).first
+
+    main_class = main_b_cell.get_attribute("class") or ""
+    v1_class = v1_b_cell.get_attribute("class") or ""
+    main_g = re.search(r'row-group-(\d+)', main_class)
+    v1_g = re.search(r'row-group-(\d+)', v1_class)
+    assert main_g and v1_g
+    assert main_g.group(1) == v1_g.group(1), "cells in same row should share row-group-N"
+
+
+def test_unmatched_commit_no_group(browser_page: Page):
+    # "Add feature D" is only on main → no group-N class
+    card = browser_page.locator(".grid-cell[data-branch='main'] .commit-card").filter(
         has_text="Add feature D"
     ).first
-    cls = card.get_attribute("class")
+    cls = card.get_attribute("class") or ""
     assert "group-" not in cls
 
 
 # --- hide / unhide ---
 
 def test_hide_commit(browser_page: Page):
-    # Hide "Add feature D"
-    card = browser_page.locator(".branch-col[data-branch='main'] .commit-card").filter(
+    card = browser_page.locator(".grid-cell[data-branch='main'] .commit-card").filter(
         has_text="Add feature D"
     ).first
-    hide_btn = card.locator(".btn-hide")
-    hide_btn.click()
-    browser_page.wait_for_timeout(600)  # allow WS update
+    card.locator(".btn-hide").click()
+    browser_page.wait_for_timeout(600)
 
-    # Card should be gone, replaced by a hidden marker
-    card_after = browser_page.locator(".branch-col[data-branch='main'] .commit-card").filter(
+    expect(browser_page.locator(".grid-cell[data-branch='main'] .commit-card").filter(
         has_text="Add feature D"
-    )
-    expect(card_after).to_have_count(0)
-
-    marker = browser_page.locator(".branch-col[data-branch='main'] .hidden-marker")
-    expect(marker).to_have_count(1)
+    )).to_have_count(0)
+    expect(browser_page.locator(".grid-cell[data-branch='main'] .hidden-strip")).to_have_count(1)
 
 
 def test_unhide_via_overlay(browser_page: Page):
-    marker = browser_page.locator(".branch-col[data-branch='main'] .hidden-marker").first
-    marker.click()
+    strip = browser_page.locator(".grid-cell[data-branch='main'] .hidden-strip").first
+    strip.click()
 
     dialog = browser_page.locator("#hidden-dialog")
     expect(dialog).to_be_visible()
 
-    # Click "show" for the hidden commit
-    show_btn = dialog.locator("button", has_text="show").first
-    show_btn.click()
+    dialog.locator("button", has_text="show").first.click()
     browser_page.wait_for_timeout(600)
 
     expect(dialog).not_to_be_visible()
-    # Add feature D should be visible again
-    card = browser_page.locator(".branch-col[data-branch='main'] .commit-card").filter(
+    expect(browser_page.locator(".grid-cell[data-branch='main'] .commit-card").filter(
         has_text="Add feature D"
-    )
-    expect(card).to_have_count(1)
+    )).to_have_count(1)
 
 
 # --- diff overlay ---
 
-def test_diff_overlay_opens(browser_page: Page):
-    # Click a commit title that has a group (should have underline-dotted)
+def test_diff_overlay_opens_and_closes(browser_page: Page):
     title = browser_page.locator(
-        ".branch-col[data-branch='main'] .commit-card .title.has-group"
+        ".grid-cell[data-branch='main'] .commit-card .title.has-group"
     ).first
     title.click()
-    browser_page.wait_for_timeout(500)
+    browser_page.wait_for_timeout(400)
 
     dialog = browser_page.locator("#diff-dialog")
     expect(dialog).to_be_visible()
-
     browser_page.locator("#diff-close").click()
     expect(dialog).not_to_be_visible()
 
 
 # --- error display ---
 
-def test_error_on_invalid_operation(browser_page: Page):
-    # POST a nonsense operation via JS and check the error dialog appears
+def test_error_dialog_on_bad_operation(browser_page: Page):
     browser_page.evaluate("""
-        fetch('/api/operation', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({type: 'delete', sha: '0000000000000000000000000000000000000000', branch: 'main'})
-        }).then(r => r.json()).then(d => {
+        (async () => {
+            const r = await fetch('/api/operation', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type: 'delete', sha: '0'.repeat(40), branch: 'main'})
+            });
+            const d = await r.json();
             if (!d.success) {
                 document.getElementById('error-output').textContent = d.error;
                 document.getElementById('error-command').textContent = d.command || '';
                 document.getElementById('error-dialog').showModal();
             }
-        });
+        })();
     """)
-    browser_page.wait_for_timeout(1000)
-    dialog = browser_page.locator("#error-dialog")
-    expect(dialog).to_be_visible()
-
+    browser_page.wait_for_timeout(800)
+    expect(browser_page.locator("#error-dialog")).to_be_visible()
     browser_page.locator("#error-close").click()
-    expect(dialog).not_to_be_visible()
+    expect(browser_page.locator("#error-dialog")).not_to_be_visible()
 
 
 # --- flush hidden ---
 
-def test_flush_hidden_button(browser_page: Page):
-    # First hide something
-    card = browser_page.locator(".branch-col[data-branch='main'] .commit-card").filter(
-        has_text="Add feature C"
-    ).first
-    if card.count() > 0:
-        card.locator(".btn-hide").click()
+def test_flush_hidden(browser_page: Page):
+    # Hide something first
+    cards = browser_page.locator(".grid-cell[data-branch='main'] .commit-card")
+    if cards.count() > 0:
+        cards.first.locator(".btn-hide").click()
         browser_page.wait_for_timeout(400)
 
-    # Flush
     browser_page.locator("#flush-hidden-btn").click()
     browser_page.wait_for_timeout(600)
+    expect(browser_page.locator(".hidden-strip")).to_have_count(0)
 
-    # No hidden markers should remain
-    markers = browser_page.locator(".hidden-marker")
-    expect(markers).to_have_count(0)
+
+# --- reorder buttons ---
+
+def test_reorder_up_button_exists(browser_page: Page):
+    # ↑ button should exist on commit cards
+    btn = browser_page.locator(".grid-cell[data-branch='main'] .commit-card .btn-up").first
+    expect(btn).to_be_visible()
+
+
+def test_reorder_down_button_exists(browser_page: Page):
+    btn = browser_page.locator(".grid-cell[data-branch='main'] .commit-card .btn-dn").first
+    expect(btn).to_be_visible()

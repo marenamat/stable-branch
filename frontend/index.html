@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>stable-branch</title>
   <link rel="stylesheet" href="/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 </head>
 <body>
   <header>
@@ -14,7 +13,11 @@
   </header>
 
   <main id="main">
-    <div id="branches"></div>
+    <div id="grid-scroll">
+      <div id="grid-container">
+        <!-- header row and commit rows injected by app.js -->
+      </div>
+    </div>
     <aside id="trash-panel">
       <h3>deleted</h3>
       <ul id="trash-list" data-branch="__trash__"></ul>

@@ -2,8 +2,9 @@
 
 // --- state ---
 let _state = { branches: [], groups: [] };
-let _trash = [];          // deleted commits {sha, short_sha, title, branch}
-let _hiddenBySha = {};    // sha → commit data (for overlay)
+let _trash = []; // {sha, short_sha, title, branch}
+let _dragSha = null;
+let _dragBranch = null;
 
 // --- WebSocket ---
 const ws = new WebSocket(`ws://${location.host}/ws`);
@@ -21,115 +22,117 @@ function setStatus(text) {
   document.getElementById('status').textContent = text;
 }
 
+// --- build rows ---
+// Returns an array of row objects sorted newest-first.
+// Each row: { groupId, colorIndex, cells: {branchName: commit|null}, timestamp }
+function buildRows(state) {
+  const { branches, groups } = state;
+
+  // sha → commit (with branchName)
+  const shaToCommit = {};
+  for (const b of branches) {
+    for (const c of b.commits) {
+      shaToCommit[c.sha] = { ...c, branchName: b.name };
+    }
+  }
+
+  const usedShas = new Set();
+  const rows = [];
+
+  // One row per group
+  for (const group of groups) {
+    const cells = {};
+    let maxTs = 0;
+    for (const sha of group.commit_shas) {
+      const c = shaToCommit[sha];
+      if (c) {
+        cells[c.branchName] = c;
+        maxTs = Math.max(maxTs, c.timestamp);
+        usedShas.add(sha);
+      }
+    }
+    rows.push({ groupId: group.id, colorIndex: group.color_index, cells, timestamp: maxTs });
+  }
+
+  // One row per unmatched commit
+  for (const b of branches) {
+    for (const c of b.commits) {
+      if (!usedShas.has(c.sha)) {
+        rows.push({
+          groupId: null,
+          colorIndex: null,
+          cells: { [b.name]: c },
+          timestamp: c.timestamp,
+        });
+      }
+    }
+  }
+
+  rows.sort((a, b) => b.timestamp - a.timestamp);
+  return rows;
+}
+
 // --- render ---
 function render() {
-  renderBranches();
+  renderGrid();
+  renderTrash();
 }
 
-function renderBranches() {
-  const container = document.getElementById('branches');
-  const existing = {};
-  for (const col of container.querySelectorAll('.branch-col')) {
-    existing[col.dataset.branch] = col;
+function renderGrid() {
+  const container = document.getElementById('grid-container');
+  const { branches } = _state;
+  if (!branches.length) return;
+
+  const n = branches.length;
+  const cols = `repeat(${n}, minmax(180px, 1fr))`;
+  container.style.gridTemplateColumns = cols;
+
+  container.innerHTML = '';
+
+  // Row 1: branch headers
+  for (const b of branches) {
+    const h = document.createElement('div');
+    h.className = 'branch-header';
+    h.textContent = b.name;
+    container.appendChild(h);
   }
 
-  const rendered = new Set();
-  for (const branch of _state.branches) {
-    rendered.add(branch.name);
-    let col = existing[branch.name];
-    if (!col) {
-      col = makeBranchColumn(branch.name);
-      container.appendChild(col);
-    }
-    updateBranchColumn(col, branch);
-  }
+  // Rows 2+: one CSS grid row per logical row
+  const rows = buildRows(_state);
+  for (const row of rows) {
+    for (const b of branches) {
+      const commit = row.cells[b.name];
+      const cell = document.createElement('div');
+      cell.className = 'grid-cell';
+      if (row.colorIndex != null) cell.classList.add(`row-group-${row.colorIndex}`);
+      cell.dataset.branch = b.name;
+      if (row.groupId) cell.dataset.groupId = row.groupId;
 
-  // remove columns for branches no longer in state
-  for (const [name, col] of Object.entries(existing)) {
-    if (!rendered.has(name)) col.remove();
-  }
-}
-
-function makeBranchColumn(branchName) {
-  const col = document.createElement('div');
-  col.className = 'branch-col';
-  col.dataset.branch = branchName;
-
-  const header = document.createElement('div');
-  header.className = 'branch-header';
-  header.textContent = branchName;
-  col.appendChild(header);
-
-  const list = document.createElement('ul');
-  list.className = 'commit-list';
-  list.dataset.branch = branchName;
-  col.appendChild(list);
-
-  Sortable.create(list, {
-    group: 'commits',
-    animation: 150,
-    ghostClass: 'sortable-ghost',
-    dragClass: 'sortable-drag',
-    onEnd(evt) {
-      const sha = evt.item.dataset.sha;
-      const fromBranch = evt.from.dataset.branch;
-      const toBranch = evt.to.dataset.branch;
-
-      if (toBranch === '__trash__') {
-        // delete handled by trash-list onAdd
-        return;
-      }
-
-      if (fromBranch === toBranch) {
-        // reorder within branch
-        const newOrder = [...evt.to.querySelectorAll('.commit-card')].map(el => el.dataset.sha);
-        postOp({ type: 'reorder', branch: fromBranch, new_order: newOrder });
+      if (commit) {
+        if (commit.hidden) {
+          cell.appendChild(makeHiddenStrip(commit, b.name));
+        } else {
+          const card = makeCommitCard(commit, row);
+          cell.appendChild(card);
+        }
       } else {
-        // cherry-pick to another branch
-        postOp({ type: 'cherrypick', sha, target_branch: toBranch });
+        // Empty cell — drop target for cherry-pick
+        cell.classList.add('empty');
+        if (row.groupId) setupCherryPickTarget(cell, row, b.name);
       }
-    }
-  });
 
-  return col;
-}
-
-function updateBranchColumn(col, branch) {
-  const list = col.querySelector('.commit-list');
-
-  // Build hidden runs: consecutive hidden commits get collapsed into a single marker
-  const items = [];
-  let hiddenRun = [];
-  for (const c of branch.commits) {
-    if (c.hidden) {
-      hiddenRun.push(c);
-    } else {
-      if (hiddenRun.length > 0) {
-        items.push({ type: 'hidden-marker', commits: hiddenRun });
-        hiddenRun = [];
-      }
-      items.push({ type: 'commit', commit: c });
-    }
-  }
-  if (hiddenRun.length > 0) {
-    items.push({ type: 'hidden-marker', commits: hiddenRun });
-  }
-
-  list.innerHTML = '';
-  for (const item of items) {
-    if (item.type === 'commit') {
-      list.appendChild(makeCommitCard(item.commit));
-    } else {
-      list.appendChild(makeHiddenMarker(item.commits, branch.name));
+      container.appendChild(cell);
     }
   }
 }
 
-function makeCommitCard(c) {
-  const li = document.createElement('li');
-  li.className = 'commit-card' + (c.color_index != null ? ` group-${c.color_index}` : '');
-  li.dataset.sha = c.sha;
-  li.dataset.branch = c.branch;
+// --- commit card ---
+function makeCommitCard(c, row) {
+  const card = document.createElement('div');
+  card.className = 'commit-card' + (c.color_index != null ? ` group-${c.color_index}` : '');
+  card.dataset.sha = c.sha;
+  card.dataset.branch = c.branchName || c.branch;
+  card.draggable = true;
 
   const sha = document.createElement('span');
   sha.className = 'sha';
@@ -140,7 +143,7 @@ function makeCommitCard(c) {
   title.textContent = c.title;
   title.title = c.author;
   if (c.group_id) {
-    title.addEventListener('click', () => openDiffDialog(c));
+    title.addEventListener('click', (e) => { e.stopPropagation(); openDiffDialog(c); });
   }
 
   const actions = document.createElement('span');
@@ -150,70 +153,136 @@ function makeCommitCard(c) {
   hideBtn.className = 'btn-hide';
   hideBtn.textContent = '−';
   hideBtn.title = 'Hide';
-  hideBtn.addEventListener('click', () => postOp({ type: 'hide', sha: c.sha, branch: c.branch }));
+  hideBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    postOp({ type: 'hide', sha: c.sha, branch: c.branchName || c.branch });
+  });
 
   const delBtn = document.createElement('button');
   delBtn.className = 'btn-del';
   delBtn.textContent = '✕';
   delBtn.title = 'Delete';
-  delBtn.addEventListener('click', () => {
-    _trash.push({ sha: c.sha, short_sha: c.short_sha, title: c.title, branch: c.branch });
-    postOp({ type: 'delete', sha: c.sha, branch: c.branch });
+  delBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    _trash.push({ sha: c.sha, short_sha: c.short_sha, title: c.title, branch: c.branchName || c.branch });
+    postOp({ type: 'delete', sha: c.sha, branch: c.branchName || c.branch });
   });
 
-  actions.append(hideBtn, delBtn);
-  li.append(sha, title, actions);
-  return li;
+  const upBtn = document.createElement('button');
+  upBtn.className = 'btn-up';
+  upBtn.textContent = '↑';
+  upBtn.title = 'Move up (reorder)';
+  upBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveCommit(c.sha, c.branchName || c.branch, -1);
+  });
+
+  const dnBtn = document.createElement('button');
+  dnBtn.className = 'btn-dn';
+  dnBtn.textContent = '↓';
+  dnBtn.title = 'Move down (reorder)';
+  dnBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveCommit(c.sha, c.branchName || c.branch, +1);
+  });
+
+  actions.append(upBtn, dnBtn, hideBtn, delBtn);
+  card.append(sha, title, actions);
+
+  // Drag source for cherry-pick
+  card.addEventListener('dragstart', (e) => {
+    _dragSha = c.sha;
+    _dragBranch = c.branchName || c.branch;
+    card.classList.add('drag-source');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', c.sha);
+  });
+  card.addEventListener('dragend', () => {
+    _dragSha = null;
+    _dragBranch = null;
+    card.classList.remove('drag-source');
+  });
+
+  return card;
 }
 
-function makeHiddenMarker(commits, branchName) {
-  const div = document.createElement('div');
-  div.className = 'hidden-marker';
-  div.dataset.branch = branchName;
+// --- hidden strip (single commit) ---
+function makeHiddenStrip(c, branchName) {
+  const strip = document.createElement('div');
+  strip.className = 'hidden-strip';
+  strip.title = c.title;
+  strip.addEventListener('click', () => openHiddenDialog([c], branchName));
+  return strip;
+}
 
-  const count = document.createElement('span');
-  count.className = 'hidden-count';
-  count.textContent = commits.length;
-  div.appendChild(count);
+// --- empty cell drag-and-drop (cherry-pick) ---
+function setupCherryPickTarget(cell, row, targetBranch) {
+  cell.addEventListener('dragover', (e) => {
+    if (_dragSha && _dragBranch !== targetBranch) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      cell.classList.add('drag-over');
+    }
+  });
+  cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+  cell.addEventListener('drop', (e) => {
+    e.preventDefault();
+    cell.classList.remove('drag-over');
+    if (_dragSha && _dragBranch !== targetBranch) {
+      postOp({ type: 'cherrypick', sha: _dragSha, target_branch: targetBranch });
+    }
+  });
+}
 
-  div.addEventListener('click', () => openHiddenDialog(commits, branchName));
-  return div;
+// --- reorder within branch via ↑↓ ---
+function moveCommit(sha, branch, delta) {
+  const b = _state.branches.find(br => br.name === branch);
+  if (!b) return;
+  const visible = b.commits.filter(c => !c.hidden);
+  const idx = visible.findIndex(c => c.sha === sha);
+  const newIdx = idx + delta;
+  if (newIdx < 0 || newIdx >= visible.length) return;
+
+  const newOrder = visible.map(c => c.sha);
+  [newOrder[idx], newOrder[newIdx]] = [newOrder[newIdx], newOrder[idx]];
+  postOp({ type: 'reorder', branch, new_order: newOrder });
 }
 
 // --- diff overlay ---
 async function openDiffDialog(c) {
   const group = _state.groups.find(g => g.id === c.group_id);
   if (!group) return;
-  const otherShas = group.commit_shas.filter(s => s !== c.sha);
-  if (otherShas.length === 0) return;
+  const others = group.commit_shas.filter(s => s !== c.sha);
+  if (!others.length) return;
 
-  const sha2 = otherShas[0];
+  const sha2 = others[0];
   const res = await fetch(`/api/diff/${c.sha}/${sha2}`);
   const { diff } = await res.json();
 
   document.getElementById('diff-title').textContent =
-    `${c.short_sha} vs ${sha2.slice(0, 8)}`;
-  document.getElementById('diff-content').innerHTML = colorDiff(diff);
+    `${c.short_sha} ↔ ${sha2.slice(0, 8)}`;
+  document.getElementById('diff-content').innerHTML = colorDiff(diff || '(no diff)');
   document.getElementById('diff-dialog').showModal();
 }
 
 function colorDiff(text) {
-  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .split('\n').map(line => {
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .split('\n')
+    .map(line => {
       if (line.startsWith('+')) return `<span class="diff-add">${line}</span>`;
       if (line.startsWith('-')) return `<span class="diff-del">${line}</span>`;
       return `<span class="diff-ctx">${line}</span>`;
-    }).join('\n');
+    })
+    .join('\n');
 }
 
-document.getElementById('diff-close').addEventListener('click', () => {
-  document.getElementById('diff-dialog').close();
-});
+document.getElementById('diff-close').addEventListener('click', () =>
+  document.getElementById('diff-dialog').close());
 
 // --- hidden overlay ---
 function openHiddenDialog(commits, branchName) {
-  document.getElementById('hidden-title').textContent =
-    `hidden commits on ${branchName}`;
+  document.getElementById('hidden-title').textContent = `hidden on ${branchName}`;
   const ul = document.getElementById('hidden-list');
   ul.innerHTML = '';
   for (const c of commits) {
@@ -232,9 +301,8 @@ function openHiddenDialog(commits, branchName) {
   document.getElementById('hidden-dialog').showModal();
 }
 
-document.getElementById('hidden-close').addEventListener('click', () => {
-  document.getElementById('hidden-dialog').close();
-});
+document.getElementById('hidden-close').addEventListener('click', () =>
+  document.getElementById('hidden-dialog').close());
 
 // --- error overlay ---
 function showError(title, output, command) {
@@ -242,52 +310,24 @@ function showError(title, output, command) {
   document.getElementById('error-output').textContent = output;
   document.getElementById('error-dialog').showModal();
 }
-document.getElementById('error-close').addEventListener('click', () => {
-  document.getElementById('error-dialog').close();
-});
+document.getElementById('error-close').addEventListener('click', () =>
+  document.getElementById('error-dialog').close());
 
 // --- trash panel ---
-const trashList = document.getElementById('trash-list');
-Sortable.create(trashList, {
-  group: { name: 'commits', pull: true, put: true },
-  animation: 150,
-  onAdd(evt) {
-    // A commit was dragged into the trash
-    const sha = evt.item.dataset.sha;
-    const branch = evt.item.dataset.branch;
-    if (sha && branch) {
-      const c = findCommit(sha);
-      if (c) _trash.push({ sha: c.sha, short_sha: c.short_sha, title: c.title, branch });
-      postOp({ type: 'delete', sha, branch });
-    }
-  }
-});
-
 function renderTrash() {
-  trashList.innerHTML = '';
+  const list = document.getElementById('trash-list');
+  list.innerHTML = '';
   for (const c of _trash) {
     const li = document.createElement('li');
-    li.className = 'commit-card';
-    li.dataset.sha = c.sha;
-    li.dataset.branch = c.branch;
+    li.className = 'trash-item';
     const sha = document.createElement('span');
     sha.className = 'sha';
     sha.textContent = c.short_sha;
     const title = document.createElement('span');
-    title.className = 'title';
     title.textContent = c.title;
     li.append(sha, title);
-    trashList.appendChild(li);
+    list.appendChild(li);
   }
-}
-
-function findCommit(sha) {
-  for (const b of _state.branches) {
-    for (const c of b.commits) {
-      if (c.sha === sha) return c;
-    }
-  }
-  return null;
 }
 
 // --- flush hidden ---
@@ -305,7 +345,6 @@ async function postOp(body) {
   const data = await res.json();
   if (!data.success) {
     showError('Operation failed', data.error || '', data.command || '');
-    // Re-fetch state to undo any optimistic UI change
     const s = await fetch('/api/state');
     _state = await s.json();
     render();
