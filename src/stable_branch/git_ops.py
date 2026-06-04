@@ -156,24 +156,35 @@ class GitWorktree:
 
     def reorder(self, branch: str, new_order: list[str]) -> OpResult:
         """new_order: commit SHAs newest-first (desired display order after reorder)."""
-        sha_set = set(new_order)
-        base: str | None = None
+        # Identify root commits (no parent) — they cannot be rebased and serve as the base.
+        root_shas: set[str] = set()
         for sha in new_order:
+            r = self._git("rev-parse", f"{sha}^", cwd=self.repo)
+            if r.returncode != 0:
+                root_shas.add(sha)
+
+        rebasable_shas = [s for s in new_order if s not in root_shas]
+        if not rebasable_shas:
+            return OpResult(False, "Cannot reorder: only root commits present", "")
+
+        rebasable_set = set(rebasable_shas)
+        base: str | None = None
+        for sha in rebasable_shas:
             r = self._git("rev-parse", f"{sha}^", cwd=self.repo)
             if r.returncode == 0:
                 parent = r.stdout.strip()
-                if parent not in sha_set:
+                if parent not in rebasable_set:
                     base = parent
                     break
         if base is None:
-            return OpResult(False, "Cannot determine rebase base (root commit?)", "")
+            return OpResult(False, "Cannot determine rebase base", "")
 
         err = self._checkout_tmp(branch)
         if err:
             return err
 
-        # Build rebase todo oldest-first
-        todo = "\n".join(f"pick {sha}" for sha in reversed(new_order)) + "\n"
+        # Build rebase todo oldest-first (exclude root commits — they stay in place)
+        todo = "\n".join(f"pick {sha}" for sha in reversed(rebasable_shas)) + "\n"
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".todo", delete=False, dir="/tmp"
         ) as tf:

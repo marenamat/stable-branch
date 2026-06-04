@@ -40,6 +40,15 @@ function buildRows(state) {
     }
   }
 
+  // sha → minimum position index across all branches (0 = branch tip = newest)
+  const shaPos = {};
+  for (const b of branches) {
+    for (let i = 0; i < b.commits.length; i++) {
+      const sha = b.commits[i].sha;
+      if (!(sha in shaPos) || i < shaPos[sha]) shaPos[sha] = i;
+    }
+  }
+
   const usedShas = new Set();
   const rows = [];
 
@@ -47,6 +56,7 @@ function buildRows(state) {
   for (const group of groups) {
     const cells = {};
     let maxTs = 0;
+    let minPos = Infinity;
     for (const sha of group.commit_shas) {
       const byBranch = shaByBranch[sha];
       if (byBranch) {
@@ -54,10 +64,11 @@ function buildRows(state) {
           cells[branchName] = c;
           maxTs = Math.max(maxTs, c.timestamp);
         }
+        if (sha in shaPos) minPos = Math.min(minPos, shaPos[sha]);
         usedShas.add(sha);
       }
     }
-    rows.push({ groupId: group.id, colorIndex: group.color_index, cells, timestamp: maxTs });
+    rows.push({ groupId: group.id, colorIndex: group.color_index, cells, timestamp: maxTs, gitOrder: minPos });
   }
 
   // One row per unmatched commit, deduplicated by SHA so shared base commits appear once
@@ -70,12 +81,13 @@ function buildRows(state) {
       }
     }
   }
-  for (const byBranch of Object.values(unmatchedBySha)) {
+  for (const [sha, byBranch] of Object.entries(unmatchedBySha)) {
     const maxTs = Math.max(...Object.values(byBranch).map(c => c.timestamp));
-    rows.push({ groupId: null, colorIndex: null, cells: byBranch, timestamp: maxTs });
+    rows.push({ groupId: null, colorIndex: null, cells: byBranch, timestamp: maxTs, gitOrder: shaPos[sha] ?? Infinity });
   }
 
-  rows.sort((a, b) => b.timestamp - a.timestamp);
+  // Sort newest-first; use git position as tiebreaker when timestamps are equal.
+  rows.sort((a, b) => (b.timestamp - a.timestamp) || (a.gitOrder - b.gitOrder));
   return rows;
 }
 

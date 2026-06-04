@@ -272,6 +272,7 @@ dialog {
   display: flex;
   flex-direction: column;
 }
+dialog:not([open]) { display: none; }
 dialog::backdrop { background: rgba(0,0,0,0.6); }
 dialog header {
   display: flex;
