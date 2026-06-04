@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import git, make_commit
+from tests.conftest import git, make_commit, make_merge_commit
 from stable_branch.git_ops import GitWorktree
 
 
@@ -217,6 +217,41 @@ def test_refs_by_sha_multiple_shas(wt, tmp_repo):
     v1_names = [r["name"] for r in refs.get(v1_tip, [])]
     assert "main" in main_names
     assert "stable/v1" in v1_names
+
+
+# --- body and merge detection ---
+
+def test_get_commits_includes_body(tmp_repo, wt):
+    make_commit(tmp_repo, "Feature with body", "body_test.txt",
+                body="Character: experimental\nPriority: high")
+    commits = wt.get_commits("main")
+    tip = commits[0]
+    assert "Character: experimental" in tip["body"]
+    assert "Priority: high" in tip["body"]
+
+
+def test_get_commits_body_empty_for_title_only(tmp_repo, wt):
+    make_commit(tmp_repo, "Plain commit no body", "plain.txt")
+    commits = wt.get_commits("main")
+    assert commits[0]["body"] == "" or "\n" not in commits[0]["body"].strip()
+
+
+def test_get_commits_detects_merge(tmp_repo, wt):
+    git(tmp_repo, "checkout", "-b", "feature-x", "main")
+    make_commit(tmp_repo, "Feature X change", "feature_x.txt")
+    git(tmp_repo, "checkout", "main")
+    make_merge_commit(tmp_repo, "feature-x", "Merge feature-x into main")
+
+    commits = wt.get_commits("main")
+    merge = next(c for c in commits if c["title"] == "Merge feature-x into main")
+    regular = next(c for c in commits if c["title"] == "Add E")
+    assert merge["is_merge"] is True
+    assert regular["is_merge"] is False
+
+
+def test_get_commits_normal_not_merge(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    assert all(not c["is_merge"] for c in commits)
 
 
 # --- worktree lifecycle ---

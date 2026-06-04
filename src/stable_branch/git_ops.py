@@ -52,22 +52,29 @@ class GitWorktree:
 
     def get_commits(self, branch: str, since: str | None = None) -> list[dict]:
         rev_range = f"{since}..{branch}" if since else branch
+        # \x1e (ASCII 30, Record Separator) between commits; \x00 between fields.
+        # %B is the full message (subject + body); %P is space-separated parent SHAs.
         r = self._git(
-            "log", "--format=%H%x00%s%x00%aN%x00%at", rev_range,
+            "log", "--format=%H%x00%s%x00%aN%x00%at%x00%P%x00%B%x1e", rev_range,
             cwd=self.repo,
         )
         commits = []
-        for line in r.stdout.splitlines():
-            parts = line.split("\x00")
-            if len(parts) != 4:
+        for record in r.stdout.split("\x1e"):
+            record = record.strip()
+            if not record:
                 continue
-            sha, title, author, ts = parts
+            parts = record.split("\x00", 5)
+            if len(parts) != 6:
+                continue
+            sha, title, author, ts, parents, body = parts
             commits.append({
                 "sha": sha,
                 "short_sha": sha[:8],
                 "title": title,
                 "author": author,
                 "timestamp": int(ts),
+                "is_merge": len(parents.split()) > 1,
+                "body": body.strip(),
             })
         return commits
 

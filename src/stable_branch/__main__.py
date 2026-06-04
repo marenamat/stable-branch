@@ -42,6 +42,10 @@ def main():
                    help="Clear persisted hidden commits on startup")
     p.add_argument("--open", action="store_true", dest="open_browser",
                    help="Open browser tab automatically")
+    p.add_argument("--hide-merges", action="store_true", dest="hide_merges",
+                   help="Auto-hide merge commits (show as strips)")
+    p.add_argument("--issue-url", dest="issue_url", metavar="URL",
+                   help="URL prefix for #N issue links (e.g. https://github.com/org/repo/issues/)")
     args = p.parse_args()
 
     cfg: dict = {}
@@ -58,6 +62,7 @@ def main():
         p.error("at least one branch is required")
 
     match_cfg = cfg.get("match", {})
+    filter_cfg = cfg.get("filter", {})
     beginnings_cfg: dict[str, str] = cfg.get("beginnings", {})
     if args.beginnings:
         for item in args.beginnings:
@@ -81,6 +86,10 @@ def main():
         branch_beginnings=beginnings_cfg,
         flush_hidden=args.flush_hidden,
         open_browser=args.open_browser,
+        hide_merges=args.hide_merges or cfg.get("hide_merges", False),
+        hide_if=filter_cfg.get("hide_if", {}),
+        highlight_if=filter_cfg.get("highlight_if", {}),
+        issue_url=args.issue_url or cfg.get("issue_url"),
     )
 
     app = create_app(config)

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import signal
 import subprocess
 from contextlib import asynccontextmanager
@@ -41,6 +42,10 @@ def _hidden_path(config: Config) -> Path:
     return _git_common_dir(config.repo_path) / "stable-branch-hidden"
 
 
+def _shown_path(config: Config) -> Path:
+    return _git_common_dir(config.repo_path) / "stable-branch-shown"
+
+
 def _load_hidden(config: Config) -> set[str]:
     p = _hidden_path(config)
     if p.exists():
@@ -52,24 +57,67 @@ def _save_hidden(config: Config, hidden: set[str]) -> None:
     _hidden_path(config).write_text(json.dumps(sorted(hidden)))
 
 
+def _load_shown(config: Config) -> set[str]:
+    p = _shown_path(config)
+    if p.exists():
+        return set(json.loads(p.read_text()))
+    return set()
+
+
+def _save_shown(config: Config, shown: set[str]) -> None:
+    _shown_path(config).write_text(json.dumps(sorted(shown)))
+
+
+_HEADER_RE = re.compile(r'^([A-Za-z][A-Za-z0-9_-]*):\s*(.+)$', re.MULTILINE)
+_ISSUE_RE = re.compile(r'#(\d+)')
+
+
+def _parse_headers(body: str) -> dict[str, str]:
+    return {m.group(1).lower(): m.group(2).strip() for m in _HEADER_RE.finditer(body)}
+
+
 def _build_state() -> dict:
     hidden = _load_hidden(_config)
+    shown = _load_shown(_config)
     branches: list[Branch] = []
     for bname in _config.branches:
         beginning = _config.branch_beginnings.get(bname)
         raw = _wt.get_commits(bname, since=beginning)
-        commits = [
-            Commit(
+        commits = []
+        for c in raw:
+            headers = _parse_headers(c["body"])
+
+            auto_hide = (_config.hide_merges and c["is_merge"]) or any(
+                (headers.get(k.lower()) or "").lower() in [v.lower() for v in vals]
+                for k, vals in _config.hide_if.items()
+            )
+            is_hidden = c["sha"] in hidden or (auto_hide and c["sha"] not in shown)
+
+            highlight_index = None
+            for i, (k, vals) in enumerate(_config.highlight_if.items()):
+                if (headers.get(k.lower()) or "").lower() in [v.lower() for v in vals]:
+                    highlight_index = i % 8
+                    break
+
+            seen: set[str] = set()
+            issue_refs = [
+                n for n in _ISSUE_RE.findall(c["body"])
+                if not (n in seen or seen.add(n))  # type: ignore[func-returns-value]
+            ]
+
+            commits.append(Commit(
                 sha=c["sha"],
                 short_sha=c["short_sha"],
                 title=c["title"],
                 author=c["author"],
                 timestamp=c["timestamp"],
                 branch=bname,
-                hidden=c["sha"] in hidden,
-            )
-            for c in raw
-        ]
+                hidden=is_hidden,
+                is_merge=c["is_merge"],
+                body=c["body"],
+                highlight_index=highlight_index,
+                issue_refs=issue_refs,
+            ))
         branches.append(Branch(name=bname, commits=commits))
 
     groups = assign_groups(branches, _config.match_threshold, _config.match_by_author)
@@ -91,6 +139,8 @@ def _build_state() -> dict:
                         "group_id": c.group_id,
                         "color_index": c.color_index,
                         "hidden": c.hidden,
+                        "highlight_index": c.highlight_index,
+                        "issue_refs": c.issue_refs,
                         "refs": refs.get(c.sha, []),
                     }
                     for c in b.commits
@@ -102,6 +152,9 @@ def _build_state() -> dict:
             {"id": g.id, "color_index": g.color_index, "commit_shas": g.commit_shas}
             for g in groups
         ],
+        "config": {
+            "issue_url": _config.issue_url,
+        },
     }
 
 
@@ -202,11 +255,17 @@ def create_app(config: Config) -> FastAPI:
             hidden = _load_hidden(_config)
             hidden.add(body["sha"])
             _save_hidden(_config, hidden)
+            shown = _load_shown(_config)
+            shown.discard(body["sha"])
+            _save_shown(_config, shown)
             result = OpResult(True)
         elif op_type == "unhide":
             hidden = _load_hidden(_config)
             hidden.discard(body["sha"])
             _save_hidden(_config, hidden)
+            shown = _load_shown(_config)
+            shown.add(body["sha"])
+            _save_shown(_config, shown)
             result = OpResult(True)
         else:
             return {"success": False, "error": f"Unknown operation: {op_type}"}

@@ -370,3 +370,23 @@ dialog ul li button:hover { color: #fff; }
 .diff-add { color: #2ecc71; }
 .diff-del { color: #e74c3c; }
 .diff-ctx { color: #888; }
+
+/* === highlight palette (right border + tinted background, 8 colors) === */
+.highlight-0 { border-right: 3px solid #e74c3c; background: rgba(231, 76,  60, 0.12); }
+.highlight-1 { border-right: 3px solid #e67e22; background: rgba(230,126,  34, 0.12); }
+.highlight-2 { border-right: 3px solid #f1c40f; background: rgba(241,196,  15, 0.12); }
+.highlight-3 { border-right: 3px solid #2ecc71; background: rgba( 46,204, 113, 0.12); }
+.highlight-4 { border-right: 3px solid #1abc9c; background: rgba( 26,188, 156, 0.12); }
+.highlight-5 { border-right: 3px solid #3498db; background: rgba( 52,152, 219, 0.12); }
+.highlight-6 { border-right: 3px solid #9b59b6; background: rgba(155, 89, 182, 0.12); }
+.highlight-7 { border-right: 3px solid #e91e63; background: rgba(233, 30,  99, 0.12); }
+
+/* === issue/PR link badge === */
+.ref-issue {
+  background: #1a0030;
+  color: #c084fc;
+  border: 1px solid #6b21a8;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ref-issue:hover { background: #2d0060; }

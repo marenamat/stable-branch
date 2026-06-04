@@ -149,7 +149,9 @@ function renderGrid() {
 // --- commit card ---
 function makeCommitCard(c, row) {
   const card = document.createElement('div');
-  card.className = 'commit-card' + (c.color_index != null ? ` group-${c.color_index}` : '');
+  let cardClass = 'commit-card' + (c.color_index != null ? ` group-${c.color_index}` : '');
+  if (c.highlight_index != null) cardClass += ` highlight-${c.highlight_index}`;
+  card.className = cardClass;
   card.dataset.sha = c.sha;
   card.dataset.branch = c.branchName || c.branch;
   card.draggable = true;
@@ -214,7 +216,19 @@ function makeCommitCard(c, row) {
     return b;
   });
 
-  card.append(sha, ...badges, title, actions);
+  const issueUrl = _state.config?.issue_url;
+  const issueBadges = issueUrl ? (c.issue_refs || []).map(n => {
+    const a = document.createElement('a');
+    a.className = 'ref-badge ref-issue';
+    a.textContent = '#' + n;
+    a.href = issueUrl + n;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.addEventListener('click', e => e.stopPropagation());
+    return a;
+  }) : [];
+
+  card.append(sha, ...badges, ...issueBadges, title, actions);
 
   // Drag source for cherry-pick
   card.addEventListener('dragstart', (e) => {

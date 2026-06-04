@@ -2,8 +2,8 @@ import pytest
 from starlette.testclient import TestClient
 
 from stable_branch.models import Config
-from stable_branch.server import create_app, _git_common_dir
-from tests.conftest import git, make_commit
+from stable_branch.server import create_app, _git_common_dir, _load_shown
+from tests.conftest import git, make_commit, make_merge_commit
 
 
 def _config(tmp_repo, branches=("main", "stable/v1")):
@@ -185,3 +185,191 @@ def test_unknown_operation_returns_error(client):
     data = r.json()
     assert not data["success"]
     assert "bogus" in data["error"]
+
+
+# --- hide_merges ---
+
+def test_hide_merges_shows_merge_as_strip(tmp_repo):
+    git(tmp_repo, "checkout", "-b", "feature-m", "main")
+    make_commit(tmp_repo, "Feature M", "feature_m.txt")
+    git(tmp_repo, "checkout", "main")
+    make_merge_commit(tmp_repo, "feature-m", "Merge feature-m")
+
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"], hide_merges=True)
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    merge = next((cm for cm in main["commits"] if cm["title"] == "Merge feature-m"), None)
+    assert merge is not None, "merge commit should still appear in state (as hidden strip)"
+    assert merge["hidden"] is True
+
+
+def test_hide_merges_false_does_not_hide(tmp_repo):
+    git(tmp_repo, "checkout", "-b", "feature-n", "main")
+    make_commit(tmp_repo, "Feature N", "feature_n.txt")
+    git(tmp_repo, "checkout", "main")
+    make_merge_commit(tmp_repo, "feature-n", "Merge feature-n")
+
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"], hide_merges=False)
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    merge = next((cm for cm in main["commits"] if cm["title"] == "Merge feature-n"), None)
+    assert merge is not None
+    assert merge["hidden"] is False
+
+
+# --- hide_if (header-based auto-hide) ---
+
+def test_hide_if_header_shows_as_strip(tmp_repo):
+    make_commit(tmp_repo, "Experimental commit", "exp.txt", body="Character: experimental")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 hide_if={"Character": ["experimental"]})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    commit = next((cm for cm in main["commits"] if cm["title"] == "Experimental commit"), None)
+    assert commit is not None
+    assert commit["hidden"] is True
+
+
+def test_hide_if_header_case_insensitive(tmp_repo):
+    make_commit(tmp_repo, "Case test", "case.txt", body="CHARACTER: EXPERIMENTAL")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 hide_if={"character": ["experimental"]})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    commit = next((cm for cm in main["commits"] if cm["title"] == "Case test"), None)
+    assert commit is not None
+    assert commit["hidden"] is True
+
+
+def test_hide_if_non_matching_header_not_hidden(tmp_repo):
+    make_commit(tmp_repo, "Normal commit", "norm.txt", body="Character: stable")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 hide_if={"Character": ["experimental"]})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    commit = next((cm for cm in main["commits"] if cm["title"] == "Normal commit"), None)
+    assert commit is not None
+    assert commit["hidden"] is False
+
+
+def test_unhide_auto_hidden_persists_via_shown_set(tmp_repo):
+    make_commit(tmp_repo, "Auto-hide me", "auto.txt", body="Character: experimental")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 hide_if={"Character": ["experimental"]})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+        main = next(b for b in data["branches"] if b["name"] == "main")
+        sha = next(cm["sha"] for cm in main["commits"] if cm["title"] == "Auto-hide me")
+
+        # unhide via operation
+        r = c.post("/api/operation", json={"type": "unhide", "sha": sha, "branch": "main"})
+        assert r.json()["success"]
+
+        # re-fetch state — should now be visible despite rule still active
+        data2 = c.get("/api/state").json()
+        main2 = next(b for b in data2["branches"] if b["name"] == "main")
+        commit2 = next(cm for cm in main2["commits"] if cm["sha"] == sha)
+        assert commit2["hidden"] is False
+
+    # verify SHA is in shown set
+    shown = _load_shown(cfg)
+    assert sha in shown
+
+
+# --- highlight_if ---
+
+def test_highlight_if_sets_index(tmp_repo):
+    make_commit(tmp_repo, "High priority", "hi.txt", body="Priority: high")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 highlight_if={"Priority": ["high", "critical"]})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    commit = next((cm for cm in main["commits"] if cm["title"] == "High priority"), None)
+    assert commit is not None
+    assert commit["highlight_index"] == 0
+
+
+def test_highlight_if_first_rule_wins(tmp_repo):
+    make_commit(tmp_repo, "Multi-rule", "multi.txt",
+                body="Priority: high\nSeverity: critical")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 highlight_if={"Priority": ["high"], "Severity": ["critical"]})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    commit = next((cm for cm in main["commits"] if cm["title"] == "Multi-rule"), None)
+    assert commit["highlight_index"] == 0  # first rule wins
+
+
+def test_highlight_if_no_match_is_null(tmp_repo):
+    make_commit(tmp_repo, "Low priority", "lo.txt", body="Priority: low")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 highlight_if={"Priority": ["high"]})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    commit = next((cm for cm in main["commits"] if cm["title"] == "Low priority"), None)
+    assert commit["highlight_index"] is None
+
+
+# --- issue_refs ---
+
+def test_issue_refs_extracted(tmp_repo):
+    make_commit(tmp_repo, "Fix two issues", "fix2.txt",
+                body="Fixes #42\nSee also #7")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"])
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    commit = next((cm for cm in main["commits"] if cm["title"] == "Fix two issues"), None)
+    assert commit["issue_refs"] == ["42", "7"]
+
+
+def test_issue_refs_deduped(tmp_repo):
+    make_commit(tmp_repo, "Dup issue", "dup.txt", body="Fixes #42\nCloses #42")
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"])
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    commit = next((cm for cm in main["commits"] if cm["title"] == "Dup issue"), None)
+    assert commit["issue_refs"] == ["42"]
+
+
+def test_issue_refs_empty_when_none(client):
+    data = client.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    for cm in main["commits"]:
+        assert cm["issue_refs"] == []
+
+
+# --- issue_url in state config ---
+
+def test_issue_url_in_state_config(tmp_repo):
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 issue_url="https://example.com/issues/")
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    assert data["config"]["issue_url"] == "https://example.com/issues/"
+
+
+def test_issue_url_null_when_not_configured(client):
+    data = client.get("/api/state").json()
+    assert data["config"]["issue_url"] is None

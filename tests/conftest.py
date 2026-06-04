@@ -27,11 +27,17 @@ def git(repo: Path, *args, check=True) -> subprocess.CompletedProcess:
     return r
 
 
-def make_commit(repo: Path, message: str, filename: str | None = None) -> str:
+def make_commit(repo: Path, message: str, filename: str | None = None, body: str = "") -> str:
     fname = filename or (message.replace(" ", "_").lower()[:20] + ".txt")
     (repo / fname).write_text(message + "\n")
     git(repo, "add", fname)
-    git(repo, "commit", "-m", message)
+    full_message = f"{message}\n\n{body}" if body else message
+    git(repo, "commit", "-m", full_message)
+    return git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def make_merge_commit(repo: Path, branch: str, message: str) -> str:
+    git(repo, "merge", "--no-ff", "-m", message, branch)
     return git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
