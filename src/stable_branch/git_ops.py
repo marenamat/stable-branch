@@ -78,8 +78,12 @@ class GitWorktree:
             })
         return commits
 
-    def refs_by_sha(self, sha_set: set[str]) -> dict[str, list[dict]]:
-        """Return {sha: [{"name": ..., "type": "branch"|"tag"}, ...]} for all refs in sha_set."""
+    def refs_by_sha(
+        self,
+        sha_set: set[str],
+        relevant_remotes: list[str] | None = None,
+    ) -> dict[str, list[dict]]:
+        """Return {sha: [{"name": ..., "type": "branch"|"tag"|"remote"}, ...]}."""
         result: dict[str, list[dict]] = {}
 
         r = self._git(
@@ -107,7 +111,24 @@ class GitWorktree:
             if commit_sha in sha_set:
                 result.setdefault(commit_sha, []).append({"name": name, "type": "tag"})
 
+        if relevant_remotes:
+            for remote in relevant_remotes:
+                r = self._git(
+                    "for-each-ref", f"refs/remotes/{remote}",
+                    "--format=%(objectname)%09%(refname:short)",
+                    cwd=self.repo,
+                )
+                for line in r.stdout.splitlines():
+                    sha, _, name = line.partition("\t")
+                    if sha in sha_set and not name.endswith("/HEAD"):
+                        result.setdefault(sha, []).append({"name": name, "type": "remote"})
+
         return result
+
+    def ancestry_shas(self, ref: str) -> set[str]:
+        """Return the set of all commit SHAs reachable from ref (inclusive)."""
+        r = self._git("rev-list", ref, cwd=self.repo)
+        return set(r.stdout.split())
 
     def commit_message(self, sha: str) -> str:
         r = self._git("log", "-1", "--format=%B", sha, cwd=self.repo)

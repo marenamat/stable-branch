@@ -76,6 +76,50 @@ def _parse_headers(body: str) -> dict[str, str]:
     return {m.group(1).lower(): m.group(2).strip() for m in _HEADER_RE.finditer(body)}
 
 
+def _add_pre_beginning_ghosts(branches: list[Branch], config: Config) -> None:
+    """Inject pre_beginning ghost commits into branches that have a configured beginning.
+
+    For branch B with beginning SHA `b`, any commit C from another branch that is a
+    git ancestor of `b` (i.e., already present in B's history before the cutoff) is
+    added to B's commit list marked pre_beginning=True so the grid can display it dimmed.
+    Commits already explicitly listed in B are not duplicated.
+    """
+    if not config.branch_beginnings:
+        return
+
+    # Collect all normal commits across all branches by SHA
+    all_commits_by_sha: dict[str, Commit] = {}
+    for branch in branches:
+        for c in branch.commits:
+            all_commits_by_sha[c.sha] = c
+
+    for branch in branches:
+        beginning = config.branch_beginnings.get(branch.name)
+        if not beginning:
+            continue
+        existing_shas = {c.sha for c in branch.commits}
+        ancestors = _wt.ancestry_shas(beginning)
+        ghosts: list[Commit] = []
+        for sha, commit in all_commits_by_sha.items():
+            if sha not in existing_shas and sha in ancestors:
+                ghost = Commit(
+                    sha=commit.sha,
+                    short_sha=commit.short_sha,
+                    title=commit.title,
+                    author=commit.author,
+                    timestamp=commit.timestamp,
+                    branch=branch.name,
+                    hidden=commit.hidden,
+                    is_merge=commit.is_merge,
+                    body=commit.body,
+                    highlight_index=commit.highlight_index,
+                    issue_refs=commit.issue_refs,
+                    pre_beginning=True,
+                )
+                ghosts.append(ghost)
+        branch.commits.extend(ghosts)
+
+
 def _build_state() -> dict:
     hidden = _load_hidden(_config)
     shown = _load_shown(_config)
@@ -120,10 +164,14 @@ def _build_state() -> dict:
             ))
         branches.append(Branch(name=bname, commits=commits))
 
+    # For branches with a configured beginning, show commits from other branches that
+    # are ancestors of that beginning as dimmed "pre_beginning" ghost entries.
+    _add_pre_beginning_ghosts(branches, _config)
+
     groups = assign_groups(branches, _config.match_threshold, _config.match_by_author)
 
     all_shas = {c.sha for b in branches for c in b.commits}
-    refs = _wt.refs_by_sha(all_shas)
+    refs = _wt.refs_by_sha(all_shas, _config.relevant_remotes or None)
 
     return {
         "branches": [
@@ -141,6 +189,7 @@ def _build_state() -> dict:
                         "hidden": c.hidden,
                         "highlight_index": c.highlight_index,
                         "issue_refs": c.issue_refs,
+                        "pre_beginning": c.pre_beginning,
                         "refs": refs.get(c.sha, []),
                     }
                     for c in b.commits

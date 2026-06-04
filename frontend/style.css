@@ -161,6 +161,7 @@ header {
 }
 .ref-tag    { background: #3a2e00; color: #f1c40f; border: 1px solid #6a5400; }
 .ref-branch { background: #00301a; color: #4caf50; border: 1px solid #006030; }
+.ref-remote { background: #002040; color: #60a0ff; border: 1px solid #004080; }
 
 .commit-card .title {
   flex: 1;
@@ -380,6 +381,13 @@ dialog ul li button:hover { color: #fff; }
 .highlight-5 { border-right: 3px solid #3498db; background: rgba( 52,152, 219, 0.12); }
 .highlight-6 { border-right: 3px solid #9b59b6; background: rgba(155, 89, 182, 0.12); }
 .highlight-7 { border-right: 3px solid #e91e63; background: rgba(233, 30,  99, 0.12); }
+
+/* === pre-beginning ghost commits (shared ancestors before branch cutoff) === */
+.commit-card.pre-beginning {
+  opacity: 0.45;
+  border-left-style: dashed;
+  border-right-style: dashed;
+}
 
 /* === issue/PR link badge === */
 .ref-issue {

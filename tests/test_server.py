@@ -373,3 +373,72 @@ def test_issue_url_in_state_config(tmp_repo):
 def test_issue_url_null_when_not_configured(client):
     data = client.get("/api/state").json()
     assert data["config"]["issue_url"] is None
+
+
+# --- pre_beginning ghost commits ---
+
+def test_pre_beginning_commit_appears_in_other_branch(tmp_repo):
+    # main: A → B → C → D → E;  stable/v1 beginning at B (so A is before beginning)
+    # A (sha_a) should appear in stable/v1 column as pre_beginning=True
+    sha_a = git(tmp_repo, "rev-parse", "HEAD~4").stdout.strip()  # "Initial commit"
+    sha_b = git(tmp_repo, "rev-parse", "stable/v1").stdout.strip()
+
+    cfg = Config(repo_path=str(tmp_repo), branches=["main", "stable/v1"],
+                 branch_beginnings={"stable/v1": sha_b})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+
+    v1 = next(b for b in data["branches"] if b["name"] == "stable/v1")
+    # sha_a (Initial commit) should appear as pre_beginning in stable/v1
+    ghost = next((cm for cm in v1["commits"] if cm["sha"] == sha_a), None)
+    assert ghost is not None, "Initial commit (pre-beginning) should appear in stable/v1"
+    assert ghost["pre_beginning"] is True
+
+
+def test_pre_beginning_not_set_without_beginning_config(client):
+    data = client.get("/api/state").json()
+    for b in data["branches"]:
+        for cm in b["commits"]:
+            assert cm["pre_beginning"] is False
+
+
+def test_pre_beginning_not_duplicated(tmp_repo):
+    # stable/v1 already has [stable] Add B and [stable] Add C; they should not
+    # also appear as pre_beginning ghosts since they're their own commits
+    sha_b = git(tmp_repo, "rev-parse", "stable/v1~1").stdout.strip()
+    cfg = Config(repo_path=str(tmp_repo), branches=["main", "stable/v1"],
+                 branch_beginnings={"stable/v1": sha_b})
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+
+    v1 = next(b for b in data["branches"] if b["name"] == "stable/v1")
+    # Each SHA should appear at most once in stable/v1's commits
+    v1_shas = [cm["sha"] for cm in v1["commits"]]
+    assert len(v1_shas) == len(set(v1_shas)), "No SHA should appear twice in the same branch"
+
+
+# --- relevant_remotes ---
+
+def test_relevant_remotes_shows_remote_ref(tmp_path, tmp_repo):
+    # Create a bare clone to use as a remote
+    bare = tmp_path / "origin.git"
+    git(tmp_repo, "clone", "--bare", str(tmp_repo), str(bare))
+    git(tmp_repo, "remote", "add", "origin", str(bare))
+    git(tmp_repo, "fetch", "origin")
+
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"],
+                 relevant_remotes=["origin"])
+    app = create_app(cfg)
+    try:
+        with TestClient(app) as c:
+            data = c.get("/api/state").json()
+        main = next(b for b in data["branches"] if b["name"] == "main")
+        tip = main["commits"][0]
+        ref_types = [r["type"] for r in tip["refs"]]
+        assert "remote" in ref_types
+        ref_names = [r["name"] for r in tip["refs"]]
+        assert any("origin/main" in n for n in ref_names)
+    finally:
+        git(tmp_repo, "remote", "remove", "origin")

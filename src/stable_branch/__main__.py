@@ -46,6 +46,8 @@ def main():
                    help="Auto-hide merge commits (show as strips)")
     p.add_argument("--issue-url", dest="issue_url", metavar="URL",
                    help="URL prefix for #N issue links (e.g. https://github.com/org/repo/issues/)")
+    p.add_argument("--remote", action="append", dest="remotes", metavar="REMOTE",
+                   help="Show remote-tracking refs for this remote (repeatable)")
     args = p.parse_args()
 
     cfg: dict = {}
@@ -90,6 +92,7 @@ def main():
         hide_if=filter_cfg.get("hide_if", {}),
         highlight_if=filter_cfg.get("highlight_if", {}),
         issue_url=args.issue_url or cfg.get("issue_url"),
+        relevant_remotes=args.remotes or cfg.get("relevant_remotes", []),
     )
 
     app = create_app(config)

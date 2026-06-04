@@ -16,6 +16,7 @@ class Commit:
     body: str = ""
     highlight_index: int | None = None
     issue_refs: list[str] = field(default_factory=list)
+    pre_beginning: bool = False
 
 
 @dataclass
@@ -45,3 +46,4 @@ class Config:
     hide_if: dict[str, list[str]] = field(default_factory=dict)
     highlight_if: dict[str, list[str]] = field(default_factory=dict)
     issue_url: str | None = None
+    relevant_remotes: list[str] = field(default_factory=list)

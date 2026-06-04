@@ -151,6 +151,7 @@ function makeCommitCard(c, row) {
   const card = document.createElement('div');
   let cardClass = 'commit-card' + (c.color_index != null ? ` group-${c.color_index}` : '');
   if (c.highlight_index != null) cardClass += ` highlight-${c.highlight_index}`;
+  if (c.pre_beginning) cardClass += ' pre-beginning';
   card.className = cardClass;
   card.dataset.sha = c.sha;
   card.dataset.branch = c.branchName || c.branch;

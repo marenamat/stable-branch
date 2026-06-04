@@ -219,6 +219,48 @@ def test_refs_by_sha_multiple_shas(wt, tmp_repo):
     assert "stable/v1" in v1_names
 
 
+def test_refs_by_sha_remote(tmp_path, tmp_repo):
+    # Create a bare "remote" repo and add it as a remote, then fetch
+    bare = tmp_path / "origin.git"
+    git(tmp_repo, "clone", "--bare", str(tmp_repo), str(bare))
+    git(tmp_repo, "remote", "add", "origin", str(bare))
+    git(tmp_repo, "fetch", "origin")
+
+    wt2 = GitWorktree(str(tmp_repo))
+    try:
+        main_tip = git(tmp_repo, "rev-parse", "main").stdout.strip()
+        refs = wt2.refs_by_sha({main_tip}, relevant_remotes=["origin"])
+        remote_refs = [r for r in refs.get(main_tip, []) if r["type"] == "remote"]
+        assert any(r["name"] == "origin/main" for r in remote_refs)
+    finally:
+        wt2.cleanup()
+        git(tmp_repo, "remote", "remove", "origin")
+
+
+def test_refs_by_sha_remote_excludes_head(tmp_path, tmp_repo):
+    bare = tmp_path / "origin2.git"
+    git(tmp_repo, "clone", "--bare", str(tmp_repo), str(bare))
+    git(tmp_repo, "remote", "add", "origin2", str(bare))
+    git(tmp_repo, "fetch", "origin2")
+
+    wt2 = GitWorktree(str(tmp_repo))
+    try:
+        main_tip = git(tmp_repo, "rev-parse", "main").stdout.strip()
+        refs = wt2.refs_by_sha({main_tip}, relevant_remotes=["origin2"])
+        remote_names = [r["name"] for r in refs.get(main_tip, []) if r["type"] == "remote"]
+        assert not any(n.endswith("/HEAD") for n in remote_names)
+    finally:
+        wt2.cleanup()
+        git(tmp_repo, "remote", "remove", "origin2")
+
+
+def test_refs_by_sha_no_remotes_when_not_configured(wt, tmp_repo):
+    main_tip = git(tmp_repo, "rev-parse", "main").stdout.strip()
+    refs = wt.refs_by_sha({main_tip})
+    remote_refs = [r for r in refs.get(main_tip, []) if r["type"] == "remote"]
+    assert remote_refs == []
+
+
 # --- body and merge detection ---
 
 def test_get_commits_includes_body(tmp_repo, wt):
