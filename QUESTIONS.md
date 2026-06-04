@@ -48,12 +48,16 @@ Questions that came up during design. Decisions made during planning are marked 
 
 - What should happen when a branch listed in config no longer exists in the repo?
   (Currently: skip it with a warning in stderr.)
+  -> refuse to start and write out all branches which are gone
 
-- **Decided:** Auto-open browser on startup is opt-in via `--open`; default is to
+- Auto-open browser on startup is opt-in via `--open`; default is to
   print the URL only.
+  -> actually auto-open the browser tab
 
 - What is the right debounce window for the inotify watcher before recomputing?
   (Currently: 200 ms after the last event.)
+  -> this probably good
 
 - Should reorder operations be restricted to contiguous ranges, or allow arbitrary
   reordering of non-adjacent commits? (Currently: arbitrary, relying on git rebase -i.)
+  -> allow arbitrary reordering but never across merges
