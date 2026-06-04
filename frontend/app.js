@@ -166,7 +166,7 @@ function makeCommitCard(c, row) {
   title.className = 'title';
   title.textContent = c.title;
   title.title = c.author;
-  title.addEventListener('click', (e) => { e.stopPropagation(); openCommitDialog(c); });
+  title.addEventListener('click', (e) => { e.stopPropagation(); openCommitDialog(c, e); });
 
   const actions = document.createElement('span');
   actions.className = 'actions';
@@ -297,7 +297,7 @@ function moveCommit(sha, branch, delta) {
 }
 
 // --- diff overlay ---
-async function openCommitDialog(c) {
+async function openCommitDialog(c, clickEvent) {
   document.getElementById('hidden-dialog').close();
   document.getElementById('error-dialog').close();
   document.getElementById('diff-title').textContent =
@@ -305,7 +305,24 @@ async function openCommitDialog(c) {
   document.getElementById('diff-message').textContent = '…';
   document.getElementById('diff-patch').textContent = '…';
   document.getElementById('diff-rangediff-section').hidden = true;
-  document.getElementById('diff-dialog').showModal();
+  const dlg = document.getElementById('diff-dialog');
+  dlg.showModal();
+
+  // Position near the click, clamped so the dialog stays inside the viewport.
+  if (clickEvent) {
+    const gap = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const dlgW = Math.min(680, vw * 0.94);
+    const dlgH = vh * 0.88;
+    let x = clickEvent.clientX + 16;
+    let y = clickEvent.clientY + 8;
+    if (x + dlgW + gap > vw) x = Math.max(gap, vw - dlgW - gap);
+    if (y + dlgH + gap > vh) y = Math.max(gap, vh - dlgH - gap);
+    dlg.style.margin = '0';
+    dlg.style.left = x + 'px';
+    dlg.style.top = y + 'px';
+  }
 
   const res = await fetch(`/api/commit/${c.sha}`);
   const { message, diff } = await res.json();
