@@ -46,18 +46,15 @@ Questions that came up during design. Decisions made during planning are marked 
 
 ## Open / undecided
 
-- What should happen when a branch listed in config no longer exists in the repo?
-  (Currently: skip it with a warning in stderr.)
-  -> refuse to start and write out all branches which are gone
-
-- Auto-open browser on startup is opt-in via `--open`; default is to
-  print the URL only.
-  -> actually auto-open the browser tab
-
 - What is the right debounce window for the inotify watcher before recomputing?
-  (Currently: 200 ms after the last event.)
-  -> this probably good
+  (Currently: 200 ms after the last event — decided: this is fine.)
 
-- Should reorder operations be restricted to contiguous ranges, or allow arbitrary
-  reordering of non-adjacent commits? (Currently: arbitrary, relying on git rebase -i.)
-  -> allow arbitrary reordering but never across merges
+## Decided (from open questions)
+
+- **Missing branch**: tool refuses to start and prints all missing branch names to stderr.
+
+- **Auto-open browser**: opens automatically by default; pass `--no-open` to suppress.
+
+- **Reorder across merges**: merge commits are anchors — arbitrary reordering is
+  allowed within the top segment (above the first merge), but commits cannot cross
+  a merge boundary. Reordering below a merge is not supported.

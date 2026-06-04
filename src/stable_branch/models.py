@@ -41,7 +41,7 @@ class Config:
     match_by_author: bool = False
     branch_beginnings: dict[str, str] = field(default_factory=dict)
     flush_hidden: bool = False
-    open_browser: bool = False
+    open_browser: bool = True
     hide_merges: bool = False
     hide_if: dict[str, list[str]] = field(default_factory=dict)
     highlight_if: dict[str, list[str]] = field(default_factory=dict)

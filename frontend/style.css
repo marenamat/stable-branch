@@ -382,6 +382,17 @@ dialog ul li button:hover { color: #fff; }
 .highlight-6 { border-right: 3px solid #9b59b6; background: rgba(155, 89, 182, 0.12); }
 .highlight-7 { border-right: 3px solid #e91e63; background: rgba(233, 30,  99, 0.12); }
 
+/* === merge commits — non-draggable, reorder buttons disabled === */
+.commit-card.is-merge {
+  cursor: default;
+  opacity: 0.8;
+}
+.commit-card.is-merge .btn-up,
+.commit-card.is-merge .btn-dn {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 /* === pre-beginning ghost commits (shared ancestors before branch cutoff) === */
 .commit-card.pre-beginning {
   opacity: 0.45;

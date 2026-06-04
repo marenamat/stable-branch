@@ -152,10 +152,11 @@ function makeCommitCard(c, row) {
   let cardClass = 'commit-card' + (c.color_index != null ? ` group-${c.color_index}` : '');
   if (c.highlight_index != null) cardClass += ` highlight-${c.highlight_index}`;
   if (c.pre_beginning) cardClass += ' pre-beginning';
+  if (c.is_merge) cardClass += ' is-merge';
   card.className = cardClass;
   card.dataset.sha = c.sha;
   card.dataset.branch = c.branchName || c.branch;
-  card.draggable = true;
+  card.draggable = !c.is_merge;
 
   const sha = document.createElement('span');
   sha.className = 'sha';
@@ -206,6 +207,11 @@ function makeCommitCard(c, row) {
     e.stopPropagation();
     moveCommit(c.sha, c.branchName || c.branch, +1);
   });
+
+  if (c.is_merge) {
+    upBtn.disabled = true;
+    dnBtn.disabled = true;
+  }
 
   actions.append(upBtn, dnBtn, hideBtn, delBtn);
 

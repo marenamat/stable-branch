@@ -27,7 +27,7 @@ pip install -e .
 python -m stable_branch /path/to/repo main stable/v1 stable/v2
 ```
 
-Prints the URL (random free port by default). Pass `--open` to open the browser automatically.
+Prints the URL and opens the browser automatically. Pass `--no-open` to suppress the browser.
 
 ## Config
 
@@ -71,7 +71,7 @@ All CLI options:
 | `--match-by-author` | off | Also require same author to match |
 | `--beginning BRANCH=REF` | — | Tag or SHA where a branch starts (repeatable) |
 | `--flush-hidden` | off | Clear all hidden commits on startup |
-| `--open` | off | Open browser tab automatically |
+| `--no-open` | — | Don't open browser tab automatically |
 | `--hide-merges` | off | Auto-hide merge commits (show as strips) |
 | `--issue-url URL` | — | URL prefix for `#N` issue/PR link badges |
 | `--remote REMOTE` | — | Show remote-tracking ref badges for this remote (repeatable) |
@@ -106,6 +106,10 @@ Commits that appear on more than one branch are shown in the same color.
 - Drag a commit within a column to reorder it (interactive rebase).
 - Drag a commit to a different column to cherry-pick it onto that branch.
 - Use the `↑` / `↓` buttons to reorder commits one step at a time.
+- Merge commits cannot be dragged or reordered; they act as fixed boundaries. Commits cannot be moved past a merge boundary.
+
+**Startup:**
+- If any configured branch does not exist in the repository, the tool refuses to start and lists the missing branches.
 
 **Errors:**
 - If an operation fails (e.g. merge conflict), the exact git command and its

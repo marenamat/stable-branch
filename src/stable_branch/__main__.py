@@ -1,5 +1,6 @@
 import argparse
 import socket
+import subprocess
 import sys
 import tomllib
 import webbrowser
@@ -9,6 +10,14 @@ import uvicorn
 
 from .models import Config
 from .server import create_app
+
+
+def _branch_exists(repo_path: str, branch: str) -> bool:
+    r = subprocess.run(
+        ["git", "rev-parse", "--verify", branch],
+        cwd=repo_path, capture_output=True,
+    )
+    return r.returncode == 0
 
 
 def _free_port() -> int:
@@ -40,8 +49,8 @@ def main():
                    help="Branch beginning as 'branch=tag-or-sha' (repeatable)")
     p.add_argument("--flush-hidden", action="store_true", dest="flush_hidden",
                    help="Clear persisted hidden commits on startup")
-    p.add_argument("--open", action="store_true", dest="open_browser",
-                   help="Open browser tab automatically")
+    p.add_argument("--no-open", action="store_true", dest="no_open",
+                   help="Don't open browser tab automatically")
     p.add_argument("--hide-merges", action="store_true", dest="hide_merges",
                    help="Auto-hide merge commits (show as strips)")
     p.add_argument("--issue-url", dest="issue_url", metavar="URL",
@@ -87,13 +96,20 @@ def main():
         match_by_author=args.match_by_author or match_cfg.get("by_author", False),
         branch_beginnings=beginnings_cfg,
         flush_hidden=args.flush_hidden,
-        open_browser=args.open_browser,
+        open_browser=cfg.get("open_browser", True) and not args.no_open,
         hide_merges=args.hide_merges or cfg.get("hide_merges", False),
         hide_if=filter_cfg.get("hide_if", {}),
         highlight_if=filter_cfg.get("highlight_if", {}),
         issue_url=args.issue_url or cfg.get("issue_url"),
         relevant_remotes=args.remotes or cfg.get("relevant_remotes", []),
     )
+
+    missing = [b for b in config.branches if not _branch_exists(config.repo_path, b)]
+    if missing:
+        print("error: the following branches were not found in the repository:", file=sys.stderr)
+        for b in missing:
+            print(f"  {b}", file=sys.stderr)
+        sys.exit(1)
 
     app = create_app(config)
 

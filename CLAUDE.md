@@ -68,8 +68,11 @@ All `Config` dataclass fields (in `models.py`):
 CLI:
 ```
 python -m stable_branch [--port N] [--config FILE] [--hide-merges] [--issue-url URL]
-                        [--remote REMOTE] ... /repo branch [branch ...]
+                        [--remote REMOTE] [--no-open] /repo branch [branch ...]
 ```
+
+- `open_browser` defaults to `True`; pass `--no-open` or set `open_browser = false` in TOML to suppress.
+- If any listed branch is missing from the repo, the tool refuses to start and lists the missing branches.
 
 ## Dev setup
 

@@ -187,6 +187,7 @@ def _build_state() -> dict:
                         "group_id": c.group_id,
                         "color_index": c.color_index,
                         "hidden": c.hidden,
+                        "is_merge": c.is_merge,
                         "highlight_index": c.highlight_index,
                         "issue_refs": c.issue_refs,
                         "pre_beginning": c.pre_beginning,

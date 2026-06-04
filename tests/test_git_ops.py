@@ -296,6 +296,53 @@ def test_get_commits_normal_not_merge(wt, tmp_repo):
     assert all(not c["is_merge"] for c in commits)
 
 
+# --- reorder across merge boundaries ---
+
+def _make_merge_repo(tmp_path):
+    """Repo with history (newest first): D, C, M(merge), B, A(root)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "config", "user.name", "Test Author")
+    sha_a = make_commit(repo, "Initial", "a.txt")
+    sha_b = make_commit(repo, "Add B", "b.txt")
+    git(repo, "checkout", "-b", "feat", sha_a)
+    make_commit(repo, "Feature", "feat.txt")
+    git(repo, "checkout", "main")
+    sha_m = make_merge_commit(repo, "feat", "Merge feat")
+    sha_c = make_commit(repo, "Add C", "c.txt")
+    sha_d = make_commit(repo, "Add D", "d.txt")
+    return repo, sha_a, sha_b, sha_m, sha_c, sha_d
+
+
+def test_reorder_across_merge_rejected(tmp_path):
+    repo, sha_a, sha_b, sha_m, sha_c, sha_d = _make_merge_repo(tmp_path)
+    wt = GitWorktree(str(repo))
+    try:
+        # Move B (below M) above M — crosses merge boundary
+        result = wt.reorder("main", [sha_d, sha_c, sha_b, sha_m, sha_a])
+        assert not result.success
+        assert "merge" in result.error.lower()
+    finally:
+        wt.cleanup()
+
+
+def test_reorder_within_top_segment_allowed(tmp_path):
+    repo, sha_a, sha_b, sha_m, sha_c, sha_d = _make_merge_repo(tmp_path)
+    wt = GitWorktree(str(repo))
+    try:
+        # Swap C and D (both above M) — stays within top segment
+        result = wt.reorder("main", [sha_c, sha_d, sha_m, sha_b, sha_a])
+        assert result.success
+        commits = wt.get_commits("main")
+        titles = [c["title"] for c in commits]
+        assert titles[0] == "Add C"
+        assert titles[1] == "Add D"
+    finally:
+        wt.cleanup()
+
+
 # --- worktree lifecycle ---
 
 def test_cleanup(tmp_repo):

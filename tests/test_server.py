@@ -55,8 +55,25 @@ def test_state_commit_has_expected_fields(client):
     data = client.get("/api/state").json()
     main = next(b for b in data["branches"] if b["name"] == "main")
     c = main["commits"][0]
-    for field in ("sha", "short_sha", "title", "author", "timestamp", "hidden", "refs"):
+    for field in ("sha", "short_sha", "title", "author", "timestamp", "hidden", "is_merge", "refs"):
         assert field in c, f"missing field: {field}"
+
+
+def test_is_merge_field_in_state(tmp_repo):
+    git(tmp_repo, "checkout", "-b", "feat-is-merge", "main")
+    make_commit(tmp_repo, "Feature is-merge", "feature_ism.txt")
+    git(tmp_repo, "checkout", "main")
+    make_merge_commit(tmp_repo, "feat-is-merge", "Merge feat-is-merge")
+
+    cfg = Config(repo_path=str(tmp_repo), branches=["main"])
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    merge = next(cm for cm in main["commits"] if cm["title"] == "Merge feat-is-merge")
+    regular = next(cm for cm in main["commits"] if cm["title"] == "Add E")
+    assert merge["is_merge"] is True
+    assert regular["is_merge"] is False
 
 
 def test_state_hidden_default_false(client):

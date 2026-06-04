@@ -182,18 +182,69 @@ class GitWorktree:
         self._drop_tmp()
         return OpResult(True)
 
+    def _validate_no_merge_crossing(self, new_order: list[str], branch: str) -> str | None:
+        """Return error message if new_order moves any commit across a merge boundary."""
+        if len(new_order) <= 1:
+            return None
+        r = self._git("log", "--format=%H %P", branch, cwd=self.repo)
+        sha_parents: dict[str, list[str]] = {}
+        current_all: list[str] = []
+        for line in r.stdout.splitlines():
+            parts = line.split()
+            if not parts:
+                continue
+            sha_parents[parts[0]] = parts[1:]
+            current_all.append(parts[0])
+        new_order_set = set(new_order)
+        current_filtered = [s for s in current_all if s in new_order_set]
+        for sha in new_order:
+            if len(sha_parents.get(sha, [])) <= 1:
+                continue
+            cur_idx = current_filtered.index(sha)
+            new_idx = new_order.index(sha)
+            if set(current_filtered[:cur_idx]) != set(new_order[:new_idx]):
+                return f"Cannot reorder across merge commit {sha[:8]}"
+        return None
+
     def reorder(self, branch: str, new_order: list[str]) -> OpResult:
         """new_order: commit SHAs newest-first (desired display order after reorder)."""
-        # Identify root commits (no parent) — they cannot be rebased and serve as the base.
-        root_shas: set[str] = set()
-        for sha in new_order:
-            r = self._git("rev-parse", f"{sha}^", cwd=self.repo)
-            if r.returncode != 0:
-                root_shas.add(sha)
+        err_msg = self._validate_no_merge_crossing(new_order, branch)
+        if err_msg:
+            return OpResult(False, err_msg, "")
 
-        rebasable_shas = [s for s in new_order if s not in root_shas]
+        # Classify each SHA as root, merge, or regular
+        root_shas: set[str] = set()
+        merge_shas: set[str] = set()
+        for sha in new_order:
+            r = self._git("log", "-1", "--format=%P", sha, cwd=self.repo)
+            if r.returncode == 0:
+                parents = r.stdout.strip().split()
+                if not parents:
+                    root_shas.add(sha)
+                elif len(parents) > 1:
+                    merge_shas.add(sha)
+
+        # Top segment: non-merge, non-root commits from the tip down to the first merge/root.
+        # Only the top segment can be reordered — commits below a merge cannot be moved
+        # without corrupting the merge's parent chain.
+        top_segment: list[str] = []
+        for sha in new_order:
+            if sha in merge_shas or sha in root_shas:
+                break
+            top_segment.append(sha)
+
+        # Verify that no positions changed outside the top segment
+        new_order_set = set(new_order)
+        r = self._git("log", "--format=%H", branch, cwd=self.repo)
+        current_filtered = [s for s in r.stdout.split() if s in new_order_set]
+        top_segment_set = set(top_segment)
+        if ([s for s in current_filtered if s not in top_segment_set] !=
+                [s for s in new_order if s not in top_segment_set]):
+            return OpResult(False, "Reordering below a merge commit is not supported", "")
+
+        rebasable_shas = top_segment
         if not rebasable_shas:
-            return OpResult(False, "Cannot reorder: only root commits present", "")
+            return OpResult(True)
 
         rebasable_set = set(rebasable_shas)
         base: str | None = None

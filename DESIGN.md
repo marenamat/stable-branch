@@ -34,9 +34,20 @@ The tool allows to delete commits in branches (by a button). Deleted commits
 are stored in an additional view, from where they can be dragged and dropped
 back into the tree.
 
+Merge commits are anchors: they cannot be dragged or reordered, and other
+commits cannot be moved across a merge boundary. Reordering is only supported
+within the top segment (commits above the first merge in the branch).
+
 Whenever any operation fails (e.g. on merge conflict), the full output is
 displayed to the user and everything rolled back. Also the command is
 displayed, so that the user may run it manually and resolve the problem.
+
+## Startup validation
+
+If any branch listed in the configuration does not exist in the repository,
+the tool refuses to start and prints all missing branch names to stderr.
+
+The browser opens automatically on startup. Pass `--no-open` to suppress this.
 
 ## Filtering and auto-hiding
 
