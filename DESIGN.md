@@ -37,3 +37,51 @@ back into the tree.
 Whenever any operation fails (e.g. on merge conflict), the full output is
 displayed to the user and everything rolled back. Also the command is
 displayed, so that the user may run it manually and resolve the problem.
+
+## Filtering and auto-hiding
+
+Commits can be automatically hidden on load based on two criteria:
+
+- **Merge commits** — if `hide_merges = true`, any commit with more than one parent
+  is hidden. Configured via TOML top-level key or `--hide-merges` CLI flag.
+
+- **Commit body headers** — commits can carry mail-style headers in their body
+  (e.g. `Character: experimental`). The `[filter.hide_if]` TOML section maps
+  header names to lists of values; a commit matching any entry is auto-hidden.
+
+Auto-hidden commits appear as thin strips (same as manually hidden commits), not
+silently removed. Users can click a strip to see and individually unhide commits.
+Once unhidden, a commit stays visible across restarts even if the auto-hide rule
+still matches — the SHA is added to `.git/stable-branch-shown` as a force-shown
+override.
+
+## Highlighting
+
+The `[filter.highlight_if]` TOML section maps header names to lists of values.
+Commits whose body contains a matching header are highlighted with a colored right
+border and a tinted background. Up to 8 distinct colors are used; the first
+matching rule wins. Highlighting is purely visual — it does not affect hide/show
+state.
+
+## Issue / PR link badges
+
+If `issue_url` is configured (e.g. `"https://github.com/org/repo/issues/"`), the
+tool scans the full commit message for `#N` patterns and renders each as a small
+purple badge on the commit card. Clicking a badge opens `issue_url + N` in a new
+tab. Duplicate references in a single commit message are shown only once.
+
+## Remote-tracking ref badges
+
+Tags and local branch heads pointing to visible commits are shown as small badges
+on commit cards. The `relevant_remotes` config option (TOML list or repeatable
+`--remote REMOTE` CLI flag) enables the same for remote-tracking refs (e.g.
+`origin/main`). Remote badges are shown in blue, distinct from local branch
+(green) and tag (yellow) badges.
+
+## Branch beginnings and pre-beginning ghosts
+
+A branch beginning is a tag or SHA marking where a stable branch was cut from
+its parent. Commits on other branches that predate a beginning are shown as
+dimmed, dashed "ghost" cards in that branch's column — indicating that those
+commits already exist in the branch's history before the cutoff point. Ghost
+cards are not draggable and are not subject to hide/show rules.

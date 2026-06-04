@@ -49,8 +49,8 @@ Questions that came up during design. Decisions made during planning are marked 
 - What should happen when a branch listed in config no longer exists in the repo?
   (Currently: skip it with a warning in stderr.)
 
-- Should the tool auto-open a browser tab on startup, or just print the URL?
-  (Currently: print the URL; auto-open is opt-in via `--open`.)
+- **Decided:** Auto-open browser on startup is opt-in via `--open`; default is to
+  print the URL only.
 
 - What is the right debounce window for the inotify watcher before recomputing?
   (Currently: 200 ms after the last event.)

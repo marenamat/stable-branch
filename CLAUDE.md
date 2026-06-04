@@ -17,8 +17,8 @@ src/stable_branch/
 
 frontend/
   index.html    Multi-column branch layout
-  style.css     16-color group palette, commit card styles
-  app.js        WebSocket client, Sortable.js drag-and-drop, overlay/dialog logic
+  style.css     16-color group palette, commit card styles, highlight palette
+  app.js        WebSocket client, drag-and-drop, overlay/dialog logic
 ```
 
 **Key invariant:** all git mutations (cherry-pick, rebase, delete) run inside a detached
@@ -33,7 +33,11 @@ Config can come from CLI args or `stable-branch.toml` (CLI overrides TOML).
 # stable-branch.toml
 repo = "/path/to/repo"
 branches = ["main", "stable/v1", "stable/v2"]
-port = 8000
+port = 8000                  # omit for random free port
+
+hide_merges = true           # auto-hide merge commits
+issue_url   = "https://github.com/org/repo/issues/"
+relevant_remotes = ["origin", "upstream"]
 
 [match]
 threshold = 0.80   # difflib ratio; lower = more matches
@@ -42,11 +46,29 @@ by_author = false  # also require same author to match
 [beginnings]
 "stable/v1" = "v1.0"   # tag or SHA where this branch starts
 "stable/v2" = "v2.0"
+
+[filter.hide_if]
+Character = ["experimental", "wip"]   # mail-style header matching
+
+[filter.highlight_if]
+Priority = ["high", "critical"]       # highlighted with colored right border
 ```
+
+All `Config` dataclass fields (in `models.py`):
+- `repo_path`, `branches`, `port`
+- `match_threshold`, `match_by_author`
+- `branch_beginnings: dict[str, str]`
+- `flush_hidden: bool`, `open_browser: bool`
+- `hide_merges: bool` — auto-hide merge commits
+- `hide_if: dict[str, list[str]]` — mail-header auto-hide rules
+- `highlight_if: dict[str, list[str]]` — mail-header highlight rules
+- `issue_url: str | None` — URL prefix for `#N` badges
+- `relevant_remotes: list[str]` — remotes whose tracking refs are shown as badges
 
 CLI:
 ```
-python -m stable_branch [--port N] [--config stable-branch.toml] /repo branch [branch ...]
+python -m stable_branch [--port N] [--config FILE] [--hide-merges] [--issue-url URL]
+                        [--remote REMOTE] ... /repo branch [branch ...]
 ```
 
 ## Dev setup
@@ -54,27 +76,34 @@ python -m stable_branch [--port N] [--config stable-branch.toml] /repo branch [b
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-playwright install chromium
+# e2e tests use Selenium + Chromium (no extra install step needed if chromium is in PATH)
 ```
 
 ## Running
 
 ```bash
 python -m stable_branch /path/to/repo main stable/v1 stable/v2
-# Opens http://localhost:8000
+# Prints URL (random port by default)
 ```
 
 ## Tests
 
 ```bash
-pytest tests/test_git_ops.py tests/test_matcher.py -v   # unit (no browser)
-pytest tests/e2e/ -v                                      # browser e2e (Playwright)
-pytest -v                                                 # everything
+pytest tests/test_git_ops.py tests/test_matcher.py tests/test_server.py -v   # unit (no browser)
+pytest tests/e2e/ -v                                                           # browser e2e (Selenium)
+pytest -v                                                                      # everything
 ```
 
 ## Hidden commits
 
-Hidden commits are persisted in `.git/stable-branch-hidden` (JSON list of SHAs).
+Two persistence files live under `.git/` (or the git common dir for worktrees):
+
+- `.git/stable-branch-hidden` — JSON list of manually hidden SHAs
+- `.git/stable-branch-shown` — JSON list of force-shown SHAs (override auto-hide rules)
+
+When a user unhides an auto-hidden commit, its SHA is added to `stable-branch-shown` so it
+stays visible across reloads even if the auto-hide rule still matches.
+
 To flush all hidden commits: `POST /api/hidden/flush` or restart with `--flush-hidden`.
 
 ## Worktree cleanup after ungraceful kill

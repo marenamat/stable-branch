@@ -27,7 +27,7 @@ pip install -e .
 python -m stable_branch /path/to/repo main stable/v1 stable/v2
 ```
 
-Opens at `http://localhost:8000`. Pass `--open` to open the browser automatically.
+Prints the URL (random free port by default). Pass `--open` to open the browser automatically.
 
 ## Config
 
@@ -39,6 +39,11 @@ repo     = "/path/to/repo"
 branches = ["main", "stable/v1", "stable/v2"]
 port     = 8000
 
+hide_merges = true   # auto-hide merge commits
+issue_url   = "https://github.com/org/repo/issues/"   # prefix for #N badges
+
+relevant_remotes = ["origin", "upstream"]   # show remote-tracking ref badges
+
 [match]
 threshold = 0.80    # commit title similarity required to group commits (0–1)
 by_author = false   # also require the same author
@@ -46,19 +51,30 @@ by_author = false   # also require the same author
 [beginnings]
 "stable/v1" = "v1.0"   # tag or SHA where each branch starts
 "stable/v2" = "v2.0"
+
+[filter.hide_if]
+# auto-hide commits whose body contains a matching mail-style header
+Character = ["experimental", "wip"]
+
+[filter.highlight_if]
+# highlight commits (colored right border) by matching mail-style header
+Priority = ["high", "critical"]
 ```
 
 All CLI options:
 
 | Flag | Default | Description |
 |---|---|---|
-| `--port N` | `8000` | Port to listen on |
+| `--port N` | random | Port to listen on |
 | `--config FILE` | `stable-branch.toml` | TOML config file |
 | `--match-threshold F` | `0.80` | Similarity threshold for grouping commits |
 | `--match-by-author` | off | Also require same author to match |
 | `--beginning BRANCH=REF` | — | Tag or SHA where a branch starts (repeatable) |
 | `--flush-hidden` | off | Clear all hidden commits on startup |
 | `--open` | off | Open browser tab automatically |
+| `--hide-merges` | off | Auto-hide merge commits (show as strips) |
+| `--issue-url URL` | — | URL prefix for `#N` issue/PR link badges |
+| `--remote REMOTE` | — | Show remote-tracking ref badges for this remote (repeatable) |
 
 ## UI
 
@@ -66,19 +82,30 @@ Each branch is a column. Commits run newest-to-oldest from top to bottom.
 Commits that appear on more than one branch are shown in the same color.
 
 **Viewing:**
-- Click a colored commit title to see the diff-of-diffs between its matching commits across branches.
+- Click a colored commit title to see the diff and, for grouped commits, a range-diff between matching commits across branches.
+- Tags, local branch heads, and remote-tracking refs pointing to visible commits are shown as small badges on the commit card.
 
 **Hiding:**
 - Click `−` on a commit to hide it. Hidden commits collapse into a thin bar.
 - Click the bar to see and restore hidden commits.
 - Click **flush hidden** in the header to show all hidden commits at once.
 - Hidden commits are remembered across restarts (stored in `.git/stable-branch-hidden`).
+- With `hide_merges = true`, merge commits are automatically hidden on startup.
+- With `[filter.hide_if]` rules, commits matching a mail-style header are automatically hidden. Auto-hidden commits can be individually unhidden via the strip dialog, and stay visible on the next reload.
+
+**Highlighting:**
+- With `[filter.highlight_if]` rules, commits matching a header are highlighted with a colored right border and tinted background. Up to 8 distinct colors are used (first matching rule wins).
+
+**Issue / PR links:**
+- If `issue_url` is configured, any `#N` pattern in a commit message is rendered as a purple badge linking to `issue_url + N`. Clicking opens the URL in a new tab.
+
+**Branch beginnings:**
+- If a branch has a configured beginning (a tag or SHA), commits from other branches that predate that point are shown as dimmed, dashed ghost cards. This makes it clear which commits already existed before the branch diverged.
 
 **Moving:**
 - Drag a commit within a column to reorder it (interactive rebase).
 - Drag a commit to a different column to cherry-pick it onto that branch.
-- Drag a commit to the **deleted** panel on the right to remove it from the branch.
-- Drag a commit from the **deleted** panel back into a column to restore it.
+- Use the `↑` / `↓` buttons to reorder commits one step at a time.
 
 **Errors:**
 - If an operation fails (e.g. merge conflict), the exact git command and its
@@ -98,8 +125,10 @@ git worktree remove --force /tmp/stable-branch-<pid>
 
 ```bash
 pip install -e ".[dev]"
-playwright install chromium
 
-pytest tests/test_git_ops.py tests/test_matcher.py -v   # unit tests
-pytest tests/e2e/ -v                                      # browser e2e tests
+pytest tests/test_git_ops.py tests/test_matcher.py tests/test_server.py -v   # unit tests
+pytest tests/e2e/ -v                                                           # browser e2e tests (needs Chromium)
+pytest -v                                                                      # everything
 ```
+
+E2e tests use Selenium with Chromium. On Ubuntu/Debian: `apt install chromium-browser`. On Alpine: `apk add chromium`.
