@@ -6,6 +6,12 @@ let _trash = []; // {sha, short_sha, title, branch}
 let _dragSha = null;
 let _dragBranch = null;
 
+// --- cherry-pick queue ---
+const _opQueue = [];   // [{sha, targetBranch, labelEl}]
+let _opRunning = false;
+let _suppressRender = false;
+let _batchCompleted = 0;
+
 // --- WebSocket ---
 let _connected = false;
 
@@ -17,7 +23,7 @@ ws.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
   if (msg.error) { showError('Server error', msg.error, ''); return; }
   _state = msg;
-  render();
+  if (!_suppressRender) render();
 };
 
 function setConnected(ok) {
@@ -315,7 +321,7 @@ function makeHiddenStrip(c, branchName) {
   return strip;
 }
 
-// --- pending card (shown immediately after drop, replaced by real render on WS update) ---
+// --- pending card (shown immediately after drop) ---
 function makePendingCard(sha) {
   const source = _state.branches.flatMap(b => b.commits).find(c => c.sha === sha);
   const card = document.createElement('div');
@@ -326,8 +332,53 @@ function makePendingCard(sha) {
   const titleEl = document.createElement('span');
   titleEl.className = 'title';
   titleEl.textContent = source?.title || '…';
-  card.append(shaEl, titleEl);
+  const labelEl = document.createElement('span');
+  labelEl.className = 'pending-label';
+  card.append(shaEl, titleEl, labelEl);
   return card;
+}
+
+// --- cherry-pick queue processor ---
+function _updateQueueLabels() {
+  const total = _batchCompleted + _opQueue.length;
+  _opQueue.forEach((op, i) => {
+    if (op.labelEl) op.labelEl.textContent = `${_batchCompleted + i + 1}/${total}`;
+  });
+}
+
+async function _runOpQueue() {
+  if (_opRunning) return;
+  _opRunning = true;
+  _suppressRender = true;
+  _batchCompleted = 0;
+  setBusy(true);
+  try {
+    while (_opQueue.length > 0) {
+      _updateQueueLabels();
+      const { sha, targetBranch } = _opQueue[0];
+      const res = await fetch('/api/operation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'cherrypick', sha, target_branch: targetBranch }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        showError('Operation failed', data.error || '', data.command || '');
+        _opQueue.length = 0;
+        const s = await fetch('/api/state');
+        _state = await s.json();
+        break;
+      }
+      _opQueue.shift();
+      _batchCompleted++;
+    }
+  } finally {
+    _opRunning = false;
+    _suppressRender = false;
+    _batchCompleted = 0;
+    setBusy(false);
+    render();
+  }
 }
 
 // --- empty cell drag-and-drop (cherry-pick) ---
@@ -343,12 +394,15 @@ function setupCherryPickTarget(cell, row, targetBranch) {
   cell.addEventListener('drop', (e) => {
     e.preventDefault();
     cell.classList.remove('drag-over');
-    if (_dragSha && _dragBranch !== targetBranch) {
-      // Show a placeholder immediately so the UI isn't blank while the rebase runs.
+    // Guard: skip if this cell already has a pending placeholder queued for this sha.
+    if (_dragSha && _dragBranch !== targetBranch && !cell.querySelector('.pending-card')) {
       cell.classList.remove('empty');
       cell.innerHTML = '';
-      cell.appendChild(makePendingCard(_dragSha));
-      postOp({ type: 'cherrypick', sha: _dragSha, target_branch: targetBranch });
+      const card = makePendingCard(_dragSha);
+      cell.appendChild(card);
+      _opQueue.push({ sha: _dragSha, targetBranch, labelEl: card.querySelector('.pending-label') });
+      _updateQueueLabels();
+      _runOpQueue();
     }
   });
 }
@@ -558,6 +612,16 @@ function renderTrash() {
 document.getElementById('flush-hidden-btn').addEventListener('click', async () => {
   if (!_connected) return;
   await fetch('/api/hidden/flush', { method: 'POST' });
+});
+
+// --- restart backend ---
+document.getElementById('restart-btn').addEventListener('click', async () => {
+  document.getElementById('status').textContent = 'restarting…';
+  try { await fetch('/api/restart', { method: 'POST' }); } catch { /* already shutting down */ }
+  const poll = () => {
+    fetch('/api/state').then(() => window.location.reload()).catch(() => setTimeout(poll, 500));
+  };
+  setTimeout(poll, 800);
 });
 
 // --- API helper ---

@@ -353,6 +353,14 @@ def create_app(config: Config) -> FastAPI:
         text = _wt.range_diff(sha1, sha2)
         return {"diff": text}
 
+    @app.post("/api/restart")
+    async def restart():
+        async def _do_restart():
+            await asyncio.sleep(0.2)
+            os.kill(os.getpid(), signal.SIGUSR1)
+        asyncio.create_task(_do_restart())
+        return {"ok": True}
+
     @app.post("/api/hidden/flush")
     async def flush_hidden():
         _save_hidden(_config, set())

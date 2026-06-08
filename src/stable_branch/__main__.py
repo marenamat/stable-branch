@@ -1,4 +1,6 @@
 import argparse
+import os
+import signal
 import socket
 import subprocess
 import sys
@@ -10,6 +12,15 @@ import uvicorn
 
 from .models import Config
 from .server import create_app
+
+# Set by SIGUSR1 (restart request from /api/restart); checked after uvicorn exits.
+_restart_requested = False
+
+
+def _sigusr1_handler(signum, frame):
+    global _restart_requested
+    _restart_requested = True
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 def _branch_exists(repo_path: str, branch: str) -> bool:
@@ -111,22 +122,30 @@ def main():
             print(f"  {b}", file=sys.stderr)
         sys.exit(1)
 
-    app = create_app(config)
+    signal.signal(signal.SIGUSR1, _sigusr1_handler)
 
     url = f"http://127.0.0.1:{config.port}"
     branch_src = "command line" if args.branches else f"config {toml_path}" if toml_path.exists() else "command line"
     print(f"stable-branch listening on {url}", flush=True)
     print(f"  repo: {config.repo_path}", flush=True)
     print(f"  branches ({branch_src}): {', '.join(config.branches)}", flush=True)
-    if config.open_browser:
-        webbrowser.open(url)
 
-    uvicorn.run(
-        app,
-        host="127.0.0.1",
-        port=config.port,
-        log_level="warning",
-    )
+    first_run = True
+    while True:
+        global _restart_requested
+        _restart_requested = False
+        app = create_app(config)
+        if first_run and config.open_browser:
+            webbrowser.open(url)
+            first_run = False
+        try:
+            uvicorn.run(app, host="127.0.0.1", port=config.port, log_level="warning")
+        except SystemExit:
+            pass
+        if _restart_requested:
+            print("restarting…", flush=True)
+        else:
+            break
 
 
 if __name__ == "__main__":

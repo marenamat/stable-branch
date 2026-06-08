@@ -32,6 +32,16 @@ header {
   cursor: pointer;
 }
 #flush-hidden-btn:hover { background: #244080; color: #e8f0ff; }
+#restart-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #1a2a50;
+  color: #a0b4d0;
+  border: 1px solid #2a3a68;
+  border-radius: 3px;
+  cursor: pointer;
+}
+#restart-btn:hover { background: #2a1a60; color: #c8c0ff; }
 
 /* === disconnected banner === */
 #disconnected-banner {
@@ -386,7 +396,10 @@ dialog ul li button:hover { background: #244888; color: #e8f0ff; }
 .highlight-7 { border-right: 3px solid #e91e63; background: rgba(233, 30,  99, 0.14); }
 
 /* === operation in progress === */
-#grid-container.busy { pointer-events: none; }
+/* Keep drag-drop working on empty cells; only block clicks on interactive elements. */
+#grid-container.busy .actions { pointer-events: none; opacity: 0.35; }
+#grid-container.busy .commit-card .title { pointer-events: none; cursor: default; }
+#grid-container.busy .hidden-strip { pointer-events: none; }
 
 .commit-card.pending-card {
   border-left-style: dashed;
@@ -396,6 +409,14 @@ dialog ul li button:hover { background: #244888; color: #e8f0ff; }
 @keyframes pending-pulse {
   0%, 100% { opacity: 0.35; }
   50%       { opacity: 0.65; }
+}
+.commit-card .pending-label {
+  font-size: 10px;
+  color: #7aabcc;
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* === merge commits — non-draggable, reorder buttons disabled === */
