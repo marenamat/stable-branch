@@ -171,6 +171,16 @@ function makeCommitCard(c, row) {
   const actions = document.createElement('span');
   actions.className = 'actions';
 
+  const editBtn = document.createElement('button');
+  editBtn.className = 'btn-edit';
+  editBtn.textContent = '✎';
+  editBtn.title = 'Edit message / author';
+  if (c.pre_beginning) editBtn.disabled = true;
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openEditDialog(c);
+  });
+
   const hideBtn = document.createElement('button');
   hideBtn.className = 'btn-hide';
   hideBtn.textContent = '−';
@@ -213,7 +223,7 @@ function makeCommitCard(c, row) {
     dnBtn.disabled = true;
   }
 
-  actions.append(upBtn, dnBtn, hideBtn, delBtn);
+  actions.append(upBtn, dnBtn, editBtn, hideBtn, delBtn);
 
   const badges = (c.refs || []).map(ref => {
     const b = document.createElement('span');
@@ -361,6 +371,60 @@ function colorDiff(text) {
 
 document.getElementById('diff-close').addEventListener('click', () =>
   document.getElementById('diff-dialog').close());
+
+// --- edit commit dialog ---
+let _editAmendments = []; // [{sha, branch}, ...]
+
+async function openEditDialog(c) {
+  // Build the amendments list: this commit, plus all group members.
+  _editAmendments = [];
+  if (c.group_id) {
+    const group = _state.groups.find(g => g.id === c.group_id);
+    if (group) {
+      for (const sha of group.commit_shas) {
+        for (const b of _state.branches) {
+          if (b.commits.some(cm => cm.sha === sha)) {
+            _editAmendments.push({ sha, branch: b.name });
+            break;
+          }
+        }
+      }
+    }
+  }
+  if (_editAmendments.length === 0) {
+    _editAmendments = [{ sha: c.sha, branch: c.branchName || c.branch }];
+  }
+
+  const res = await fetch(`/api/commit/${c.sha}`);
+  const { message } = await res.json();
+  document.getElementById('edit-message').value = message || '';
+  document.getElementById('edit-author').value = c.author || '';
+
+  const n = _editAmendments.length;
+  const names = _editAmendments.map(a => a.branch).join(', ');
+  document.getElementById('edit-scope').textContent =
+    n === 1 ? `Updating 1 branch: ${names}` : `Updating ${n} branches: ${names}`;
+  document.getElementById('edit-save').textContent = n === 1 ? 'Save' : `Save (${n} branches)`;
+
+  document.getElementById('edit-dialog').showModal();
+}
+
+document.getElementById('edit-save').addEventListener('click', async () => {
+  const message = document.getElementById('edit-message').value;
+  const author = document.getElementById('edit-author').value.trim();
+  document.getElementById('edit-dialog').close();
+  await postOp({
+    type: 'amend',
+    amendments: _editAmendments,
+    message: message || null,
+    author: author || null,
+  });
+});
+
+document.getElementById('edit-cancel').addEventListener('click', () =>
+  document.getElementById('edit-dialog').close());
+document.getElementById('edit-close').addEventListener('click', () =>
+  document.getElementById('edit-dialog').close());
 
 // --- hidden overlay ---
 function openHiddenDialog(commits, branchName) {

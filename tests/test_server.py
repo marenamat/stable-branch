@@ -436,6 +436,73 @@ def test_pre_beginning_not_duplicated(tmp_repo):
     assert len(v1_shas) == len(set(v1_shas)), "No SHA should appear twice in the same branch"
 
 
+# --- amend operation ---
+
+def test_amend_operation_changes_message(client):
+    data = client.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    sha = next(c["sha"] for c in main["commits"] if c["title"] == "Add E")
+
+    r = client.post("/api/operation", json={
+        "type": "amend",
+        "amendments": [{"sha": sha, "branch": "main"}],
+        "message": "Add E (amended)",
+    })
+    assert r.json()["success"]
+
+    data2 = client.get("/api/state").json()
+    main2 = next(b for b in data2["branches"] if b["name"] == "main")
+    titles = [c["title"] for c in main2["commits"]]
+    assert "Add E (amended)" in titles
+    assert "Add E" not in titles
+
+
+def test_amend_operation_changes_author(client):
+    data = client.get("/api/state").json()
+    main = next(b for b in data["branches"] if b["name"] == "main")
+    sha = next(c["sha"] for c in main["commits"] if c["title"] == "Add E")
+
+    r = client.post("/api/operation", json={
+        "type": "amend",
+        "amendments": [{"sha": sha, "branch": "main"}],
+        "author": "Alice <alice@example.com>",
+    })
+    assert r.json()["success"]
+
+    data2 = client.get("/api/state").json()
+    main2 = next(b for b in data2["branches"] if b["name"] == "main")
+    tip = next(c for c in main2["commits"] if c["title"] == "Add E")
+    assert "Alice" in tip["author"]
+
+
+def test_amend_operation_multi_branch(tmp_repo):
+    # Two branches each have a commit; amend both in one operation.
+    cfg = Config(repo_path=str(tmp_repo), branches=["main", "stable/v1"])
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        data = c.get("/api/state").json()
+        main = next(b for b in data["branches"] if b["name"] == "main")
+        v1 = next(b for b in data["branches"] if b["name"] == "stable/v1")
+        sha_main = next(cm["sha"] for cm in main["commits"] if cm["title"] == "Add E")
+        sha_v1 = next(cm["sha"] for cm in v1["commits"] if cm["title"] == "[stable] Add C")
+
+        r = c.post("/api/operation", json={
+            "type": "amend",
+            "amendments": [
+                {"sha": sha_main, "branch": "main"},
+                {"sha": sha_v1, "branch": "stable/v1"},
+            ],
+            "message": "Amended on both",
+        })
+        assert r.json()["success"]
+
+        data2 = c.get("/api/state").json()
+        main2 = next(b for b in data2["branches"] if b["name"] == "main")
+        v1_2 = next(b for b in data2["branches"] if b["name"] == "stable/v1")
+        assert any(cm["title"] == "Amended on both" for cm in main2["commits"])
+        assert any(cm["title"] == "Amended on both" for cm in v1_2["commits"])
+
+
 # --- relevant_remotes ---
 
 def test_relevant_remotes_shows_remote_ref(tmp_path, tmp_repo):

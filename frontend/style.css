@@ -400,6 +400,73 @@ dialog ul li button:hover { color: #fff; }
   border-right-style: dashed;
 }
 
+/* === edit button === */
+.commit-card .btn-edit:hover { background: #2a4a6e; color: #7ec8ff; }
+
+/* === edit commit dialog === */
+#edit-dialog {
+  min-width: min(480px, 94vw);
+  max-width: min(560px, 94vw);
+  max-height: 90vh;
+}
+#edit-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+.edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+#edit-message, #edit-author {
+  font-family: inherit;
+  font-size: 13px;
+  background: #0d1828;
+  color: #e0e0e0;
+  border: 1px solid #2a4060;
+  border-radius: 3px;
+  padding: 6px 8px;
+  resize: vertical;
+  width: 100%;
+}
+#edit-message:focus, #edit-author:focus {
+  outline: none;
+  border-color: #3a8aff;
+}
+#edit-scope {
+  font-size: 11px;
+  color: #5a7a9a;
+}
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.edit-actions button {
+  font-size: 12px;
+  padding: 4px 14px;
+  border-radius: 3px;
+  border: 1px solid #444;
+  cursor: pointer;
+}
+#edit-save {
+  background: #0f3460;
+  color: #c0d8ff;
+}
+#edit-save:hover { background: #1a4a80; color: #fff; }
+#edit-cancel {
+  background: #1e2a4a;
+  color: #888;
+}
+#edit-cancel:hover { background: #2a3a5e; color: #ccc; }
+
 /* === issue/PR link badge === */
 .ref-issue {
   background: #1a0030;

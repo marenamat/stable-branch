@@ -102,6 +102,11 @@ Commits that appear on more than one branch are shown in the same color.
 **Branch beginnings:**
 - If a branch has a configured beginning (a tag or SHA), commits from other branches that predate that point are shown as dimmed, dashed ghost cards. This makes it clear which commits already existed before the branch diverged.
 
+**Editing:**
+- Click `✎` on a commit to edit its message and/or author.
+- If the commit belongs to a matched group (same logical change on N branches), the edit dialog shows all N branches and saves the change to all of them in one shot.
+- Editing is not supported for commits that sit below a merge commit in the branch history.
+
 **Moving:**
 - Drag a commit within a column to reorder it (interactive rebase).
 - Drag a commit to a different column to cherry-pick it onto that branch.

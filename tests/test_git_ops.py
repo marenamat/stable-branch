@@ -45,7 +45,7 @@ def test_commit_fields(wt, tmp_repo):
     assert len(c["sha"]) == 40
     assert len(c["short_sha"]) == 8
     assert c["title"]
-    assert c["author"] == "Test Author"
+    assert c["author"] == "Test Author <test@example.com>"
     assert isinstance(c["timestamp"], int)
 
 
@@ -341,6 +341,66 @@ def test_reorder_within_top_segment_allowed(tmp_path):
         assert titles[1] == "Add D"
     finally:
         wt.cleanup()
+
+
+# --- amend_commit ---
+
+def test_amend_commit_message(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    sha_e = next(c["sha"] for c in commits if c["title"] == "Add E")
+    result = wt.amend_commit("main", sha_e, "Amended E message\n\nWith body.", None)
+    assert result.success
+    updated = wt.get_commits("main")
+    tip = updated[0]
+    assert tip["title"] == "Amended E message"
+    msg = wt.commit_message(tip["sha"])
+    assert "With body." in msg
+
+
+def test_amend_commit_author(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    sha_e = next(c["sha"] for c in commits if c["title"] == "Add E")
+    result = wt.amend_commit("main", sha_e, None, "Alice <alice@example.com>")
+    assert result.success
+    updated = wt.get_commits("main")
+    tip = updated[0]
+    assert "Alice" in tip["author"]
+
+
+def test_amend_commit_message_and_author(wt, tmp_repo):
+    commits = wt.get_commits("main")
+    sha_e = next(c["sha"] for c in commits if c["title"] == "Add E")
+    result = wt.amend_commit("main", sha_e, "New title", "Bob <bob@example.com>")
+    assert result.success
+    updated = wt.get_commits("main")
+    tip = updated[0]
+    assert tip["title"] == "New title"
+    assert "Bob" in tip["author"]
+
+
+def test_amend_commit_in_middle(wt, tmp_repo):
+    # Add two more commits so we can amend one that isn't the tip.
+    make_commit(tmp_repo, "Top of stack", "top.txt")
+    commits = wt.get_commits("main")
+    sha_mid = next(c["sha"] for c in commits if c["title"] == "Add E")
+    result = wt.amend_commit("main", sha_mid, "Add E (amended)", None)
+    assert result.success
+    updated = wt.get_commits("main")
+    titles = [c["title"] for c in updated]
+    assert "Add E (amended)" in titles
+    assert "Top of stack" in titles
+
+
+def test_amend_commit_below_merge_rejected(tmp_path):
+    repo, sha_a, sha_b, sha_m, sha_c, sha_d = _make_merge_repo(tmp_path)
+    wt2 = GitWorktree(str(repo))
+    try:
+        # sha_b is below the merge commit sha_m
+        result = wt2.amend_commit("main", sha_b, "Cannot amend this", None)
+        assert not result.success
+        assert "merge" in result.error.lower()
+    finally:
+        wt2.cleanup()
 
 
 # --- worktree lifecycle ---

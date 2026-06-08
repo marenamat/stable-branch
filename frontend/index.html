@@ -68,6 +68,27 @@
     <ul id="hidden-list"></ul>
   </dialog>
 
+  <!-- edit commit dialog -->
+  <dialog id="edit-dialog">
+    <header>
+      <strong>Edit commit</strong>
+      <button id="edit-close">✕</button>
+    </header>
+    <div id="edit-body">
+      <label class="edit-label">Message
+        <textarea id="edit-message" rows="8" spellcheck="false"></textarea>
+      </label>
+      <label class="edit-label">Author
+        <input id="edit-author" type="text" placeholder="Name &lt;email&gt;">
+      </label>
+      <p id="edit-scope"></p>
+      <div class="edit-actions">
+        <button id="edit-save">Save</button>
+        <button id="edit-cancel">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/app.js"></script>
 </body>
 </html>

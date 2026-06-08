@@ -317,6 +317,15 @@ def create_app(config: Config) -> FastAPI:
             shown.add(body["sha"])
             _save_shown(_config, shown)
             result = OpResult(True)
+        elif op_type == "amend":
+            amendments = body.get("amendments", [])
+            new_message = body.get("message") or None
+            new_author = body.get("author") or None
+            result = OpResult(True)
+            for a in amendments:
+                result = _wt.amend_commit(a["branch"], a["sha"], new_message, new_author)
+                if not result.success:
+                    break
         else:
             return {"success": False, "error": f"Unknown operation: {op_type}"}
 

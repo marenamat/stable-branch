@@ -21,9 +21,9 @@ frontend/
   app.js        WebSocket client, drag-and-drop, overlay/dialog logic
 ```
 
-**Key invariant:** all git mutations (cherry-pick, rebase, delete) run inside a detached
-git worktree at `/tmp/stable-branch-<pid>`. The user's working trees are never touched.
-The worktree is cleaned up on exit (atexit + SIGTERM/SIGINT handlers).
+**Key invariant:** all git mutations (cherry-pick, rebase, delete, amend) run inside a
+detached git worktree at `/tmp/stable-branch-<pid>`. The user's working trees are never
+touched. The worktree is cleaned up on exit (atexit + SIGTERM/SIGINT handlers).
 
 ## Config
 
@@ -53,6 +53,9 @@ Character = ["experimental", "wip"]   # mail-style header matching
 [filter.highlight_if]
 Priority = ["high", "critical"]       # highlighted with colored right border
 ```
+
+The `author` field in commit data uses `"Name <email>"` format (from `%aN <%aE>` in
+`git log`). This matches what `git commit --amend --author` expects.
 
 All `Config` dataclass fields (in `models.py`):
 - `repo_path`, `branches`, `port`

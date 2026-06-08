@@ -1,5 +1,6 @@
 import atexit
 import os
+import shlex
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -55,7 +56,7 @@ class GitWorktree:
         # \x1e (ASCII 30, Record Separator) between commits; \x00 between fields.
         # %B is the full message (subject + body); %P is space-separated parent SHAs.
         r = self._git(
-            "log", "--format=%H%x00%s%x00%aN%x00%at%x00%P%x00%B%x1e", rev_range,
+            "log", "--format=%H%x00%s%x00%aN <%aE>%x00%at%x00%P%x00%B%x1e", rev_range,
             cwd=self.repo,
         )
         commits = []
@@ -284,6 +285,107 @@ class GitWorktree:
             cwd=self.wt, env=env, capture_output=True, text=True,
         )
         for f in (script, todo_file):
+            try:
+                os.unlink(f)
+            except FileNotFoundError:
+                pass
+
+        if r2.returncode != 0:
+            subprocess.run(["git", "rebase", "--abort"], cwd=self.wt, capture_output=True)
+            self._drop_tmp()
+            return OpResult(False, r2.stdout + r2.stderr, cmd)
+
+        self._commit_tmp_back(branch)
+        self._drop_tmp()
+        return OpResult(True)
+
+    def amend_commit(
+        self,
+        branch: str,
+        sha: str,
+        new_message: str | None,
+        new_author: str | None,
+    ) -> OpResult:
+        """Amend the message and/or author of an existing commit.
+
+        Fails if the commit is a root commit or if there are merge commits
+        between sha and the branch tip (rebasing across merges would corrupt
+        the merge's parent chain).
+        """
+        r = self._git("rev-parse", f"{sha}^", cwd=self.repo)
+        if r.returncode != 0:
+            return OpResult(False, "Cannot amend root commit", f"git rev-parse {sha}^")
+        base = r.stdout.strip()
+
+        err = self._checkout_tmp(branch)
+        if err:
+            return err
+
+        # Collect commits from base to branch tip (newest-first); detect merges.
+        r = self._git("log", "--format=%H %P", f"{base}..{branch}", cwd=self.repo)
+        commits_newest_first: list[str] = []
+        for line in r.stdout.splitlines():
+            parts = line.split()
+            if not parts:
+                continue
+            if len(parts) > 2:  # sha + 2+ parents = merge commit
+                self._drop_tmp()
+                return OpResult(
+                    False,
+                    "Cannot amend a commit with merge commits above it",
+                    "",
+                )
+            commits_newest_first.append(parts[0])
+
+        if not commits_newest_first:
+            self._drop_tmp()
+            return OpResult(False, "Commit not found in branch range", "")
+
+        msg_file: str | None = None
+        if new_message is not None:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".msg", delete=False, dir="/tmp"
+            ) as mf:
+                mf.write(new_message)
+                msg_file = mf.name
+
+        # Build rebase todo (oldest-first).
+        # For the target sha, inject an exec right after pick to amend it.
+        todo_lines: list[str] = []
+        for c_sha in reversed(commits_newest_first):
+            todo_lines.append(f"pick {c_sha}")
+            if c_sha == sha:
+                amend_parts = ["git", "commit", "--amend"]
+                if msg_file:
+                    amend_parts += ["-F", msg_file]
+                else:
+                    amend_parts.append("--no-edit")
+                if new_author is not None:
+                    amend_parts += ["--author", new_author]
+                todo_lines.append("exec " + " ".join(shlex.quote(p) for p in amend_parts))
+        todo = "\n".join(todo_lines) + "\n"
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".todo", delete=False, dir="/tmp"
+        ) as tf:
+            tf.write(todo)
+            todo_file = tf.name
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".sh", delete=False, dir="/tmp"
+        ) as sf:
+            sf.write("#!/bin/sh\n")
+            sf.write(f"cp {todo_file} \"$1\"\n")
+            seq_script = sf.name
+        os.chmod(seq_script, 0o755)
+
+        cmd = f"GIT_SEQUENCE_EDITOR={seq_script} git rebase -i {base}"
+        env = {**os.environ, "GIT_SEQUENCE_EDITOR": seq_script}
+        r2 = subprocess.run(
+            ["git", "rebase", "-i", base],
+            cwd=self.wt, env=env, capture_output=True, text=True,
+        )
+
+        for f in [seq_script, todo_file] + ([msg_file] if msg_file else []):
             try:
                 os.unlink(f)
             except FileNotFoundError:

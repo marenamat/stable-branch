@@ -24,6 +24,18 @@ The tool allows to display a diff of the diffs for each group of similar commits
 
 The tool allows to hide commits (by a button), and these will collapse into a marker which would display them in an overlay, and allow possibly unhiding them (by a button).
 
+## Editing
+
+The tool allows editing a commit's message and author via a `✎` button on each card.
+When a commit belongs to a matched group (the same logical change present on N branches),
+the edit dialog presents all N branches and propagates the change to all of them with a
+single Save. This covers the common workflow of fixing a commit message (e.g. adding a
+fixes/closes reference) that was backported to several branches.
+
+Editing is implemented as `git rebase -i` with an `exec git commit --amend` step for the
+target commit. It fails if there are merge commits above the target commit on the branch
+(rebasing across merges would corrupt the merge's parent chain).
+
 ## Ordering / Cherry-picking
 
 The tool allows to drag-and-drop commits to reorder them in the branches.
