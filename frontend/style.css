@@ -3,8 +3,8 @@
 body {
   font-family: 'Cascadia Code', 'Fira Mono', 'Consolas', monospace;
   font-size: 13px;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: #141422;
+  color: #dde4f0;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -18,25 +18,25 @@ header {
   gap: 12px;
   padding: 6px 12px;
   background: #16213e;
-  border-bottom: 1px solid #0f3460;
+  border-bottom: 1px solid #1e3260;
   flex-shrink: 0;
 }
-#status { font-size: 11px; color: #888; flex: 1; }
+#status { font-size: 11px; color: #8ab0cc; flex: 1; transition: color 0.15s; }
 #flush-hidden-btn {
   font-size: 11px;
   padding: 2px 8px;
-  background: #0f3460;
-  color: #aaa;
-  border: 1px solid #444;
+  background: #1a3060;
+  color: #c0d4e8;
+  border: 1px solid #2a4878;
   border-radius: 3px;
   cursor: pointer;
 }
-#flush-hidden-btn:hover { color: #fff; }
+#flush-hidden-btn:hover { background: #244080; color: #e8f0ff; }
 
 /* === disconnected banner === */
 #disconnected-banner {
-  background: #7e2a2a;
-  color: #ffcccc;
+  background: #6e2020;
+  color: #ffd0d0;
   text-align: center;
   padding: 6px 12px;
   font-size: 12px;
@@ -74,9 +74,10 @@ header {
   z-index: 2;
   padding: 6px 10px;
   background: #0f3460;
+  color: #e8f0ff;
   font-weight: bold;
   font-size: 12px;
-  border-right: 1px solid #1a3a6e;
+  border-right: 1px solid #1e3a6e;
   white-space: nowrap;
 }
 .branch-header:last-child { border-right: none; }
@@ -84,8 +85,8 @@ header {
 /* === grid cells (rows 2+) === */
 .grid-cell {
   padding: 2px 4px;
-  border-right: 1px solid #0d1a30;
-  border-bottom: 1px solid #0d1a30;
+  border-right: 1px solid #1a2840;
+  border-bottom: 1px solid #1a2840;
   min-height: 34px;
   display: flex;
   align-items: stretch;
@@ -95,23 +96,23 @@ header {
 }
 .grid-cell:last-child { border-right: none; }
 
-/* row background tint by group (shared across all cells in the row) */
-.row-group-0  { background: rgba(231, 76,  60,  0.07); }
-.row-group-1  { background: rgba(230,126,  34,  0.07); }
-.row-group-2  { background: rgba(241,196,  15,  0.07); }
-.row-group-3  { background: rgba( 46,204, 113,  0.07); }
-.row-group-4  { background: rgba( 26,188, 156,  0.07); }
-.row-group-5  { background: rgba( 52,152, 219,  0.07); }
-.row-group-6  { background: rgba(155, 89, 182,  0.07); }
-.row-group-7  { background: rgba(233, 30,  99,  0.07); }
-.row-group-8  { background: rgba(255, 87,  34,  0.07); }
-.row-group-9  { background: rgba(255,152,   0,  0.07); }
-.row-group-10 { background: rgba(205,220,  57,  0.07); }
-.row-group-11 { background: rgba( 76,175,  80,  0.07); }
-.row-group-12 { background: rgba(  0,188, 212,  0.07); }
-.row-group-13 { background: rgba( 33,150, 243,  0.07); }
-.row-group-14 { background: rgba(103, 58, 183,  0.07); }
-.row-group-15 { background: rgba(240, 98, 146,  0.07); }
+/* row background tint by group — 0.13 opacity for clear group rows */
+.row-group-0  { background: rgba(231, 76,  60,  0.13); }
+.row-group-1  { background: rgba(230,126,  34,  0.13); }
+.row-group-2  { background: rgba(241,196,  15,  0.13); }
+.row-group-3  { background: rgba( 46,204, 113,  0.13); }
+.row-group-4  { background: rgba( 26,188, 156,  0.13); }
+.row-group-5  { background: rgba( 52,152, 219,  0.13); }
+.row-group-6  { background: rgba(155, 89, 182,  0.13); }
+.row-group-7  { background: rgba(233, 30,  99,  0.13); }
+.row-group-8  { background: rgba(255, 87,  34,  0.13); }
+.row-group-9  { background: rgba(255,152,   0,  0.13); }
+.row-group-10 { background: rgba(205,220,  57,  0.13); }
+.row-group-11 { background: rgba( 76,175,  80,  0.13); }
+.row-group-12 { background: rgba(  0,188, 212,  0.13); }
+.row-group-13 { background: rgba( 33,150, 243,  0.13); }
+.row-group-14 { background: rgba(103, 58, 183,  0.13); }
+.row-group-15 { background: rgba(240, 98, 146,  0.13); }
 
 /* empty cell: drop target for cherry-pick */
 .grid-cell.empty { cursor: copy; }
@@ -123,7 +124,7 @@ header {
   border-radius: 3px;
   transition: border-color 0.1s;
 }
-.grid-cell.empty.drag-over::after { border-color: #3a8aff; }
+.grid-cell.empty.drag-over::after { border-color: #5a9fff; }
 
 /* === commit card === */
 .commit-card {
@@ -133,7 +134,8 @@ header {
   padding: 4px 6px;
   border-radius: 3px;
   border-left: 3px solid transparent;
-  background: #1e2a4a;
+  background: #1e2d50;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
   user-select: none;
   cursor: grab;
   width: 100%;
@@ -143,7 +145,7 @@ header {
 
 .commit-card .sha {
   font-size: 10px;
-  color: #888;
+  color: #7aabcc;
   min-width: 58px;
   flex-shrink: 0;
 }
@@ -159,9 +161,9 @@ header {
   line-height: 1.4;
   align-self: center;
 }
-.ref-tag    { background: #3a2e00; color: #f1c40f; border: 1px solid #6a5400; }
-.ref-branch { background: #00301a; color: #4caf50; border: 1px solid #006030; }
-.ref-remote { background: #002040; color: #60a0ff; border: 1px solid #004080; }
+.ref-tag    { background: #3a2e00; color: #f5cc20; border: 1px solid #7a5800; }
+.ref-branch { background: #003820; color: #5ed470; border: 1px solid #1a6030; }
+.ref-remote { background: #001e40; color: #70b0ff; border: 1px solid #1a4888; }
 
 .commit-card .title {
   flex: 1;
@@ -185,14 +187,14 @@ header {
   border: none;
   border-radius: 2px;
   cursor: pointer;
-  background: #2a3a5e;
-  color: #aaa;
+  background: #2a3a60;
+  color: #b0c4dc;
   line-height: 1.2;
 }
-.commit-card button:hover { background: #3a4a7e; color: #fff; }
-.commit-card .btn-del:hover  { background: #7e2a2a; color: #fff; }
+.commit-card button:hover { background: #3a4e80; color: #e8f0ff; }
+.commit-card .btn-del:hover  { background: #7a2222; color: #ffd0d0; }
 .commit-card .btn-up:hover,
-.commit-card .btn-dn:hover   { background: #2a5a3e; color: #fff; }
+.commit-card .btn-dn:hover   { background: #1e5a38; color: #c0f0d0; }
 
 /* === 16-color group palette (commit card left border) === */
 .group-0  { border-left-color: #e74c3c; }
@@ -218,7 +220,7 @@ header {
   width: 100%;
   border-radius: 2px;
   background: repeating-linear-gradient(
-    90deg, #2a3a5e 0px, #2a3a5e 4px, #1e2a4a 4px, #1e2a4a 8px
+    90deg, #3a4e78 0px, #3a4e78 4px, #1e2d50 4px, #1e2d50 8px
   );
   cursor: pointer;
   margin: 2px 0;
@@ -230,13 +232,14 @@ header {
   width: 200px;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #0f3460;
-  background: #12192e;
+  border-left: 1px solid #1e3060;
+  background: #111a2c;
   flex-shrink: 0;
 }
 #trash-panel h3 {
   padding: 6px 10px;
   background: #0f3460;
+  color: #c8d8ee;
   font-size: 12px;
   font-weight: bold;
   flex-shrink: 0;
@@ -250,19 +253,19 @@ header {
 .trash-item {
   font-size: 11px;
   padding: 3px 6px;
-  border-bottom: 1px solid #1a3060;
-  color: #888;
+  border-bottom: 1px solid #1e2e48;
+  color: #8aa0b8;
   display: flex;
   gap: 4px;
   align-items: baseline;
 }
-.trash-item .sha { color: #555; min-width: 54px; }
+.trash-item .sha { color: #6888a4; min-width: 54px; }
 
 /* === dialogs === */
 dialog {
   background: #16213e;
-  color: #e0e0e0;
-  border: 1px solid #0f3460;
+  color: #dde4f0;
+  border: 1px solid #1e3462;
   border-radius: 8px;
   outline: none;
   padding: 0;
@@ -274,20 +277,20 @@ dialog {
   flex-direction: column;
 }
 dialog:not([open]) { display: none; }
-dialog::backdrop { background: rgba(0,0,0,0.6); }
+dialog::backdrop { background: rgba(0,0,0,0.65); }
 dialog header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
   background: #0f3460;
-  border-bottom: 1px solid #1a3060;
+  border-bottom: 1px solid #1e3a6e;
   flex-shrink: 0;
 }
 dialog header button {
   background: none;
   border: none;
-  color: #aaa;
+  color: #b0c4dc;
   font-size: 14px;
   cursor: pointer;
 }
@@ -312,50 +315,50 @@ dialog ul li {
   justify-content: space-between;
   align-items: center;
   padding: 4px 0;
-  border-bottom: 1px solid #1a3060;
+  border-bottom: 1px solid #1e3060;
   gap: 8px;
 }
 dialog ul li span { flex: 1; font-size: 12px; }
 dialog ul li button {
   font-size: 11px;
   padding: 2px 6px;
-  background: #0f3460;
-  border: 1px solid #444;
+  background: #1a3868;
+  border: 1px solid #2a4e88;
   border-radius: 3px;
-  color: #aaa;
+  color: #b0c8e8;
   cursor: pointer;
 }
-dialog ul li button:hover { color: #fff; }
+dialog ul li button:hover { background: #244888; color: #e8f0ff; }
 #error-command {
   padding: 8px 12px;
   font-family: monospace;
   font-size: 11px;
-  color: #f1c40f;
+  color: #f5cc20;
   background: #0a1020;
-  border-bottom: 1px solid #1a3060;
+  border-bottom: 1px solid #1e3060;
   flex-shrink: 0;
 }
 
 /* === commit detail dialog === */
 #diff-dialog {
-  border: 2px solid #3a8aff;
-  box-shadow: 0 4px 32px rgba(58, 138, 255, 0.28);
+  border: 2px solid #4a8fff;
+  box-shadow: 0 4px 32px rgba(58, 138, 255, 0.32);
   min-width: min(680px, 94vw);
   max-width: 92vw;
   max-height: 88vh;
 }
-#diff-dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
+#diff-dialog::backdrop { background: rgba(0, 0, 0, 0.78); }
 #diff-scroll {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
 }
-.diff-section { border-bottom: 1px solid #1a3060; }
+.diff-section { border-bottom: 1px solid #1e3060; }
 .diff-section:last-child { border-bottom: none; }
 .diff-section-label {
   padding: 3px 12px;
   font-size: 10px;
-  color: #5a7a9a;
+  color: #7a9cbd;
   background: #0d1828;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -368,23 +371,22 @@ dialog ul li button:hover { color: #fff; }
 }
 
 /* === diff syntax coloring === */
-.diff-add { color: #2ecc71; }
-.diff-del { color: #e74c3c; }
-.diff-ctx { color: #888; }
+.diff-add { color: #4dd68a; }
+.diff-del { color: #f07070; }
+.diff-ctx { color: #8aacc4; }
 
 /* === highlight palette (right border + tinted background, 8 colors) === */
-.highlight-0 { border-right: 3px solid #e74c3c; background: rgba(231, 76,  60, 0.12); }
-.highlight-1 { border-right: 3px solid #e67e22; background: rgba(230,126,  34, 0.12); }
-.highlight-2 { border-right: 3px solid #f1c40f; background: rgba(241,196,  15, 0.12); }
-.highlight-3 { border-right: 3px solid #2ecc71; background: rgba( 46,204, 113, 0.12); }
-.highlight-4 { border-right: 3px solid #1abc9c; background: rgba( 26,188, 156, 0.12); }
-.highlight-5 { border-right: 3px solid #3498db; background: rgba( 52,152, 219, 0.12); }
-.highlight-6 { border-right: 3px solid #9b59b6; background: rgba(155, 89, 182, 0.12); }
-.highlight-7 { border-right: 3px solid #e91e63; background: rgba(233, 30,  99, 0.12); }
+.highlight-0 { border-right: 3px solid #e74c3c; background: rgba(231, 76,  60, 0.14); }
+.highlight-1 { border-right: 3px solid #e67e22; background: rgba(230,126,  34, 0.14); }
+.highlight-2 { border-right: 3px solid #f1c40f; background: rgba(241,196,  15, 0.14); }
+.highlight-3 { border-right: 3px solid #2ecc71; background: rgba( 46,204, 113, 0.14); }
+.highlight-4 { border-right: 3px solid #1abc9c; background: rgba( 26,188, 156, 0.14); }
+.highlight-5 { border-right: 3px solid #3498db; background: rgba( 52,152, 219, 0.14); }
+.highlight-6 { border-right: 3px solid #9b59b6; background: rgba(155, 89, 182, 0.14); }
+.highlight-7 { border-right: 3px solid #e91e63; background: rgba(233, 30,  99, 0.14); }
 
 /* === operation in progress === */
 #grid-container.busy { pointer-events: none; }
-#status { transition: color 0.15s; }
 
 .commit-card.pending-card {
   border-left-style: dashed;
@@ -399,23 +401,23 @@ dialog ul li button:hover { color: #fff; }
 /* === merge commits — non-draggable, reorder buttons disabled === */
 .commit-card.is-merge {
   cursor: default;
-  opacity: 0.8;
+  opacity: 0.75;
 }
 .commit-card.is-merge .btn-up,
 .commit-card.is-merge .btn-dn {
-  opacity: 0.3;
+  opacity: 0.25;
   cursor: not-allowed;
 }
 
 /* === pre-beginning ghost commits (shared ancestors before branch cutoff) === */
 .commit-card.pre-beginning {
-  opacity: 0.45;
+  opacity: 0.42;
   border-left-style: dashed;
   border-right-style: dashed;
 }
 
 /* === edit button === */
-.commit-card .btn-edit:hover { background: #2a4a6e; color: #7ec8ff; }
+.commit-card .btn-edit:hover { background: #1e4a78; color: #90ccff; }
 
 /* === edit commit dialog === */
 #edit-dialog {
@@ -435,7 +437,7 @@ dialog ul li button:hover { color: #fff; }
   flex-direction: column;
   gap: 4px;
   font-size: 11px;
-  color: #888;
+  color: #8ab0cc;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -443,8 +445,8 @@ dialog ul li button:hover { color: #fff; }
   font-family: inherit;
   font-size: 13px;
   background: #0d1828;
-  color: #e0e0e0;
-  border: 1px solid #2a4060;
+  color: #dde4f0;
+  border: 1px solid #2a4870;
   border-radius: 3px;
   padding: 6px 8px;
   resize: vertical;
@@ -452,11 +454,11 @@ dialog ul li button:hover { color: #fff; }
 }
 #edit-message:focus, #edit-author:focus {
   outline: none;
-  border-color: #3a8aff;
+  border-color: #4a8fff;
 }
 #edit-scope {
   font-size: 11px;
-  color: #5a7a9a;
+  color: #7a9cbd;
 }
 .edit-actions {
   display: flex;
@@ -467,26 +469,26 @@ dialog ul li button:hover { color: #fff; }
   font-size: 12px;
   padding: 4px 14px;
   border-radius: 3px;
-  border: 1px solid #444;
+  border: 1px solid #2a4878;
   cursor: pointer;
 }
 #edit-save {
-  background: #0f3460;
-  color: #c0d8ff;
+  background: #1a3e70;
+  color: #c8deff;
 }
-#edit-save:hover { background: #1a4a80; color: #fff; }
+#edit-save:hover { background: #244e90; color: #e8f4ff; }
 #edit-cancel {
-  background: #1e2a4a;
-  color: #888;
+  background: #1c2a4a;
+  color: #9ab0c8;
 }
-#edit-cancel:hover { background: #2a3a5e; color: #ccc; }
+#edit-cancel:hover { background: #263a60; color: #d0e0f0; }
 
 /* === issue/PR link badge === */
 .ref-issue {
-  background: #1a0030;
-  color: #c084fc;
-  border: 1px solid #6b21a8;
+  background: #1e0038;
+  color: #cc8fff;
+  border: 1px solid #7030b8;
   text-decoration: none;
   cursor: pointer;
 }
-.ref-issue:hover { background: #2d0060; }
+.ref-issue:hover { background: #300060; }
