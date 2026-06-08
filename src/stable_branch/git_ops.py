@@ -26,7 +26,8 @@ class GitWorktree:
             ["git", *args],
             cwd=cwd or self.wt,
             capture_output=True,
-            text=True,
+            encoding='utf-8',
+            errors='replace',
         )
 
     def _create_wt(self):
@@ -36,7 +37,8 @@ class GitWorktree:
             ["git", "worktree", "add", "--detach", str(self.wt)],
             cwd=self.repo,
             capture_output=True,
-            text=True,
+            encoding='utf-8',
+            errors='replace',
         )
         if r.returncode != 0:
             raise RuntimeError(f"Cannot create worktree: {r.stderr.strip()}")
@@ -283,7 +285,7 @@ class GitWorktree:
         env = {**os.environ, "GIT_SEQUENCE_EDITOR": script}
         r2 = subprocess.run(
             ["git", "rebase", "-i", base],
-            cwd=self.wt, env=env, capture_output=True, text=True,
+            cwd=self.wt, env=env, capture_output=True, encoding='utf-8', errors='replace',
         )
         for f in (script, todo_file):
             try:
@@ -383,7 +385,7 @@ class GitWorktree:
         env = {**os.environ, "GIT_SEQUENCE_EDITOR": seq_script}
         r2 = subprocess.run(
             ["git", "rebase", "-i", base],
-            cwd=self.wt, env=env, capture_output=True, text=True,
+            cwd=self.wt, env=env, capture_output=True, encoding='utf-8', errors='replace',
         )
 
         for f in [seq_script, todo_file] + ([msg_file] if msg_file else []):
@@ -451,7 +453,7 @@ class GitWorktree:
         env = {**os.environ, "GIT_SEQUENCE_EDITOR": "true", "GIT_EDITOR": "true"}
         r2 = subprocess.run(
             ["git", "rebase", "-i", "--autosquash", base],
-            cwd=self.wt, env=env, capture_output=True, text=True,
+            cwd=self.wt, env=env, capture_output=True, encoding='utf-8', errors='replace',
         )
 
         if r2.returncode != 0:
