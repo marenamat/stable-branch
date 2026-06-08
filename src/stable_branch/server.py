@@ -319,6 +319,8 @@ def create_app(config: Config) -> FastAPI:
             shown.add(body["sha"])
             _save_shown(_config, shown)
             result = OpResult(True)
+        elif op_type == "autosquash":
+            result = _wt.autosquash(body["branch"], body["sha"])
         elif op_type == "amend":
             amendments = body.get("amendments", [])
             new_message = body.get("message") or None
@@ -357,7 +359,8 @@ def create_app(config: Config) -> FastAPI:
     async def restart():
         async def _do_restart():
             await asyncio.sleep(0.2)
-            os.kill(os.getpid(), signal.SIGUSR1)
+            Path(f"/tmp/stable-branch-restart-{os.getpid()}").touch()
+            os.kill(os.getpid(), signal.SIGTERM)
         asyncio.create_task(_do_restart())
         return {"ok": True}
 

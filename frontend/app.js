@@ -271,7 +271,20 @@ function makeCommitCard(c, row) {
     dnBtn.disabled = true;
   }
 
-  actions.append(upBtn, dnBtn, editBtn, hideBtn, delBtn);
+  const isFixup = c.title.startsWith('fixup! ') || c.title.startsWith('squash! ');
+  const squashBtn = isFixup ? document.createElement('button') : null;
+  if (squashBtn) {
+    squashBtn.className = 'btn-squash';
+    squashBtn.textContent = '⊕';
+    squashBtn.title = 'Squash into target commit';
+    if (c.pre_beginning) squashBtn.disabled = true;
+    squashBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      postOp({ type: 'autosquash', branch: c.branchName || c.branch, sha: c.sha });
+    });
+  }
+
+  actions.append(upBtn, dnBtn, editBtn, ...(squashBtn ? [squashBtn] : []), hideBtn, delBtn);
 
   const badges = (c.refs || []).map(ref => {
     const b = document.createElement('span');

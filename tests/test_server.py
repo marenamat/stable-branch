@@ -503,6 +503,30 @@ def test_amend_operation_multi_branch(tmp_repo):
         assert any(cm["title"] == "Amended on both" for cm in v1_2["commits"])
 
 
+# --- autosquash operation ---
+
+def test_autosquash_operation_squashes_fixup(tmp_repo):
+    git(tmp_repo, "checkout", "-b", "fix-branch", "main")
+    make_commit(tmp_repo, "Add feature", "feat_op.txt")
+    sha_fixup = make_commit(tmp_repo, "fixup! Add feature", "feat_fix_op.txt")
+
+    cfg = Config(repo_path=str(tmp_repo), branches=["fix-branch"])
+    app = create_app(cfg)
+    with TestClient(app) as c:
+        r = c.post("/api/operation", json={
+            "type": "autosquash",
+            "branch": "fix-branch",
+            "sha": sha_fixup,
+        })
+        assert r.json()["success"], r.json().get("error")
+
+        data = c.get("/api/state").json()
+        branch = next(b for b in data["branches"] if b["name"] == "fix-branch")
+        titles = [cm["title"] for cm in branch["commits"]]
+        assert "Add feature" in titles
+        assert not any("fixup!" in t for t in titles)
+
+
 # --- relevant_remotes ---
 
 def test_relevant_remotes_shows_remote_ref(tmp_path, tmp_repo):

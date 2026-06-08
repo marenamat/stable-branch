@@ -401,6 +401,68 @@ class GitWorktree:
         self._drop_tmp()
         return OpResult(True)
 
+    def autosquash(self, branch: str, sha: str) -> OpResult:
+        """Squash a fixup!/squash! commit into its target via git rebase --autosquash.
+
+        Strips all fixup!/squash! prefixes from the commit title to find the root
+        original commit, then rebases the whole range so git can collapse every
+        fixup/squash variant of that original into it in one pass.
+        """
+        r = self._git("log", "-1", "--format=%s", sha, cwd=self.repo)
+        if r.returncode != 0:
+            return OpResult(False, f"Cannot read commit {sha[:8]}", "")
+        title = r.stdout.strip()
+
+        # Strip all fixup!/squash! layers to reach the root target title.
+        base_title = title
+        while base_title.startswith("fixup! ") or base_title.startswith("squash! "):
+            base_title = base_title.split(" ", 1)[1]
+
+        # Find the most recent commit in the branch with that root title.
+        r = self._git("log", "--format=%H%x00%s", branch, cwd=self.repo)
+        original_sha = None
+        for line in r.stdout.splitlines():
+            if not line:
+                continue
+            c_sha, _, c_title = line.partition("\x00")
+            if c_title == base_title and c_sha != sha:
+                original_sha = c_sha
+                break  # git log is newest-first; take the most recent match
+
+        if original_sha is None:
+            return OpResult(False, f"No commit with title {base_title!r} found in {branch}", "")
+
+        r = self._git("rev-parse", f"{original_sha}^", cwd=self.repo)
+        if r.returncode != 0:
+            return OpResult(False, "Original commit has no parent (root commit)", f"git rev-parse {original_sha[:8]}^")
+        base = r.stdout.strip()
+
+        # Reject if any merge commits exist in the rebase range.
+        r = self._git("log", "--format=%P", f"{base}..{branch}", cwd=self.repo)
+        for line in r.stdout.splitlines():
+            if len(line.split()) > 1:
+                return OpResult(False, "Cannot autosquash: merge commits in range", "")
+
+        err = self._checkout_tmp(branch)
+        if err:
+            return err
+
+        cmd = f"GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash {base}"
+        env = {**os.environ, "GIT_SEQUENCE_EDITOR": "true", "GIT_EDITOR": "true"}
+        r2 = subprocess.run(
+            ["git", "rebase", "-i", "--autosquash", base],
+            cwd=self.wt, env=env, capture_output=True, text=True,
+        )
+
+        if r2.returncode != 0:
+            subprocess.run(["git", "rebase", "--abort"], cwd=self.wt, capture_output=True)
+            self._drop_tmp()
+            return OpResult(False, r2.stdout + r2.stderr, cmd)
+
+        self._commit_tmp_back(branch)
+        self._drop_tmp()
+        return OpResult(True)
+
     def delete_commit(self, branch: str, commit_sha: str) -> OpResult:
         err = self._checkout_tmp(branch)
         if err:

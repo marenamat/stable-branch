@@ -404,6 +404,56 @@ def test_amend_commit_below_merge_rejected(tmp_path):
         wt2.cleanup()
 
 
+# --- autosquash ---
+
+def test_autosquash_fixup_commit(tmp_repo):
+    git(tmp_repo, "checkout", "-b", "feat", "main")
+    make_commit(tmp_repo, "Add feature", "feat.txt")
+    make_commit(tmp_repo, "fixup! Add feature", "feat_fix.txt")
+    wt2 = GitWorktree(str(tmp_repo))
+    try:
+        sha_fixup = git(tmp_repo, "rev-parse", "HEAD").stdout.strip()
+        result = wt2.autosquash("feat", sha_fixup)
+        assert result.success, result.error
+        commits = wt2.get_commits("feat")
+        titles = [c["title"] for c in commits]
+        assert titles.count("Add feature") == 1
+        assert not any("fixup!" in t for t in titles)
+    finally:
+        wt2.cleanup()
+
+
+def test_autosquash_chain(tmp_repo):
+    git(tmp_repo, "checkout", "-b", "chain", "main")
+    make_commit(tmp_repo, "Add X", "x.txt")
+    make_commit(tmp_repo, "fixup! Add X", "x2.txt")
+    make_commit(tmp_repo, "fixup! fixup! Add X", "x3.txt")
+    wt2 = GitWorktree(str(tmp_repo))
+    try:
+        sha_last = git(tmp_repo, "rev-parse", "HEAD").stdout.strip()
+        result = wt2.autosquash("chain", sha_last)
+        assert result.success, result.error
+        commits = wt2.get_commits("chain")
+        titles = [c["title"] for c in commits]
+        assert "Add X" in titles
+        assert not any("fixup!" in t for t in titles)
+    finally:
+        wt2.cleanup()
+
+
+def test_autosquash_missing_original(tmp_repo):
+    git(tmp_repo, "checkout", "-b", "orphan", "main")
+    make_commit(tmp_repo, "fixup! Nonexistent commit", "orphan.txt")
+    wt2 = GitWorktree(str(tmp_repo))
+    try:
+        sha = git(tmp_repo, "rev-parse", "HEAD").stdout.strip()
+        result = wt2.autosquash("orphan", sha)
+        assert not result.success
+        assert "Nonexistent commit" in result.error or "No commit" in result.error
+    finally:
+        wt2.cleanup()
+
+
 # --- worktree lifecycle ---
 
 def test_cleanup(tmp_repo):

@@ -113,9 +113,15 @@ Commits that appear on more than one branch are shown in the same color.
 
 **Moving:**
 - Drag a commit within a column to reorder it (interactive rebase).
-- Drag a commit to a different column to cherry-pick it onto that branch.
+- Drag a commit to a different column to cherry-pick it onto that branch. Multiple drops queue up and execute in order; progress is shown as `N/M` on each pending card.
 - Use the `↑` / `↓` buttons to reorder commits one step at a time.
 - Merge commits cannot be dragged or reordered; they act as fixed boundaries. Commits cannot be moved past a merge boundary.
+
+**Squashing:**
+- Click `⊕` on a `fixup!` or `squash!` commit to squash it down into its target commit via `git rebase --autosquash`. The entire fixup chain is resolved in one shot.
+
+**Backend controls:**
+- Click **restart** in the header to restart the backend process and reload the page (useful after config changes).
 
 **Startup:**
 - If any configured branch does not exist in the repository, the tool refuses to start and lists the missing branches.

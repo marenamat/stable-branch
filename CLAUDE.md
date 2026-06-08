@@ -112,6 +112,24 @@ stays visible across reloads even if the auto-hide rule still matches.
 
 To flush all hidden commits: `POST /api/hidden/flush` or restart with `--flush-hidden`.
 
+## Restart mechanism
+
+The **restart** button in the header calls `POST /api/restart`. The server:
+1. Touches `/tmp/stable-branch-restart-{pid}` as a flag file.
+2. Sends `SIGTERM` to itself, causing uvicorn to shut down.
+3. After `uvicorn.run()` returns in `__main__.py`, the flag file is detected.
+4. `os.execv()` replaces the process with a fresh instance (`python -m stable_branch` + original argv + `--no-open`).
+
+The frontend polls `GET /api/state` every 500 ms after the restart and reloads once the new server responds.
+
+## Autosquash
+
+Clicking `⊕` on a `fixup!` or `squash!` commit calls `POST /api/operation` with `type: autosquash`. The backend (`GitWorktree.autosquash`):
+1. Strips all `fixup!`/`squash!` prefixes from the title to find the root target title.
+2. Locates the original commit in the branch by title match.
+3. Runs `git rebase -i --autosquash <parent-of-original>` with `GIT_SEQUENCE_EDITOR=true` and `GIT_EDITOR=true` to suppress all interactive prompts.
+4. Rejects the operation if there are merge commits in the rebase range.
+
 ## Worktree cleanup after ungraceful kill
 
 If the process was killed and left a stale worktree:

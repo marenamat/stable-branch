@@ -440,6 +440,9 @@ dialog ul li button:hover { background: #244888; color: #e8f0ff; }
 /* === edit button === */
 .commit-card .btn-edit:hover { background: #1e4a78; color: #90ccff; }
 
+/* === squash button (fixup!/squash! commits only) === */
+.commit-card .btn-squash:hover { background: #2a3800; color: #c8ee44; }
+
 /* === edit commit dialog === */
 #edit-dialog {
   min-width: min(calc(120ch + 52px), 96vw);

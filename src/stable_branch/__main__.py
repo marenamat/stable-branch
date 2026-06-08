@@ -13,15 +13,6 @@ import uvicorn
 from .models import Config
 from .server import create_app
 
-# Set by SIGUSR1 (restart request from /api/restart); checked after uvicorn exits.
-_restart_requested = False
-
-
-def _sigusr1_handler(signum, frame):
-    global _restart_requested
-    _restart_requested = True
-    os.kill(os.getpid(), signal.SIGTERM)
-
 
 def _branch_exists(repo_path: str, branch: str) -> bool:
     r = subprocess.run(
@@ -122,30 +113,26 @@ def main():
             print(f"  {b}", file=sys.stderr)
         sys.exit(1)
 
-    signal.signal(signal.SIGUSR1, _sigusr1_handler)
-
     url = f"http://127.0.0.1:{config.port}"
     branch_src = "command line" if args.branches else f"config {toml_path}" if toml_path.exists() else "command line"
     print(f"stable-branch listening on {url}", flush=True)
     print(f"  repo: {config.repo_path}", flush=True)
     print(f"  branches ({branch_src}): {', '.join(config.branches)}", flush=True)
 
-    first_run = True
-    while True:
-        global _restart_requested
-        _restart_requested = False
-        app = create_app(config)
-        if first_run and config.open_browser:
-            webbrowser.open(url)
-            first_run = False
-        try:
-            uvicorn.run(app, host="127.0.0.1", port=config.port, log_level="warning")
-        except SystemExit:
-            pass
-        if _restart_requested:
-            print("restarting…", flush=True)
-        else:
-            break
+    app = create_app(config)
+    if config.open_browser:
+        webbrowser.open(url)
+    try:
+        uvicorn.run(app, host="127.0.0.1", port=config.port, log_level="warning")
+    except SystemExit:
+        pass
+
+    restart_flag = Path(f"/tmp/stable-branch-restart-{os.getpid()}")
+    if restart_flag.exists():
+        restart_flag.unlink(missing_ok=True)
+        print("restarting…", flush=True)
+        extra = [] if "--no-open" in sys.argv else ["--no-open"]
+        os.execv(sys.executable, [sys.executable, "-m", "stable_branch"] + sys.argv[1:] + extra)
 
 
 if __name__ == "__main__":
