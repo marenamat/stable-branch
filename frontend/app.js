@@ -273,6 +273,21 @@ function makeHiddenStrip(c, branchName) {
   return strip;
 }
 
+// --- pending card (shown immediately after drop, replaced by real render on WS update) ---
+function makePendingCard(sha) {
+  const source = _state.branches.flatMap(b => b.commits).find(c => c.sha === sha);
+  const card = document.createElement('div');
+  card.className = 'commit-card pending-card';
+  const shaEl = document.createElement('span');
+  shaEl.className = 'sha';
+  shaEl.textContent = sha.slice(0, 8);
+  const titleEl = document.createElement('span');
+  titleEl.className = 'title';
+  titleEl.textContent = source?.title || '…';
+  card.append(shaEl, titleEl);
+  return card;
+}
+
 // --- empty cell drag-and-drop (cherry-pick) ---
 function setupCherryPickTarget(cell, row, targetBranch) {
   cell.addEventListener('dragover', (e) => {
@@ -287,6 +302,10 @@ function setupCherryPickTarget(cell, row, targetBranch) {
     e.preventDefault();
     cell.classList.remove('drag-over');
     if (_dragSha && _dragBranch !== targetBranch) {
+      // Show a placeholder immediately so the UI isn't blank while the rebase runs.
+      cell.classList.remove('empty');
+      cell.innerHTML = '';
+      cell.appendChild(makePendingCard(_dragSha));
       postOp({ type: 'cherrypick', sha: _dragSha, target_branch: targetBranch });
     }
   });
@@ -484,19 +503,33 @@ document.getElementById('flush-hidden-btn').addEventListener('click', async () =
 });
 
 // --- API helper ---
+function setBusy(busy) {
+  document.getElementById('grid-container').classList.toggle('busy', busy);
+  if (busy) {
+    document.getElementById('status').textContent = 'processing…';
+  } else {
+    document.getElementById('status').textContent = _connected ? 'connected' : 'disconnected';
+  }
+}
+
 async function postOp(body) {
   if (!_connected) return;
-  const res = await fetch('/api/operation', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!data.success) {
-    showError('Operation failed', data.error || '', data.command || '');
-    const s = await fetch('/api/state');
-    _state = await s.json();
-    render();
+  setBusy(true);
+  try {
+    const res = await fetch('/api/operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      showError('Operation failed', data.error || '', data.command || '');
+      const s = await fetch('/api/state');
+      _state = await s.json();
+      render();
+    }
+    renderTrash();
+  } finally {
+    setBusy(false);
   }
-  renderTrash();
 }

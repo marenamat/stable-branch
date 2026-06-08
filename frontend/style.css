@@ -382,6 +382,20 @@ dialog ul li button:hover { color: #fff; }
 .highlight-6 { border-right: 3px solid #9b59b6; background: rgba(155, 89, 182, 0.12); }
 .highlight-7 { border-right: 3px solid #e91e63; background: rgba(233, 30,  99, 0.12); }
 
+/* === operation in progress === */
+#grid-container.busy { pointer-events: none; }
+#status { transition: color 0.15s; }
+
+.commit-card.pending-card {
+  border-left-style: dashed;
+  cursor: default;
+  animation: pending-pulse 1.1s ease-in-out infinite;
+}
+@keyframes pending-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.65; }
+}
+
 /* === merge commits — non-draggable, reorder buttons disabled === */
 .commit-card.is-merge {
   cursor: default;
