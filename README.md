@@ -1,5 +1,9 @@
 # stable-branch
 
+**This is a completely vibecoded project with not much code review done.
+Feel free to send vibecoded pull requests. The primary viber of this project
+uses it for managing BIRD stable branch releases.**
+
 Browser UI for viewing and managing git history across multiple branches
 simultaneously — built for the stable branch workflow where commits are
 backported across release branches such as `main`, `stable/v1`, `stable/v2`.
