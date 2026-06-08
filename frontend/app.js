@@ -101,31 +101,36 @@ function buildRows(state) {
     rows.push({ groupId: null, colorIndex: null, cells: byBranch, timestamp: maxTs, committedTs: maxCt, gitOrder: shaPos[sha] ?? Infinity });
   }
 
-  // Try sorting by committed time (newest first), tiebreak by git position.
+  // Sort by committed time (newest first), tiebreak by git position.
   const byCommitted = [...rows].sort(
     (a, b) => (b.committedTs - a.committedTs) || (a.gitOrder - b.gitOrder)
   );
 
-  // Verify that the committed-time ordering is consistent with each branch's git-log
-  // order: as we scan rows top-to-bottom, the position of each branch's commits must
-  // be non-decreasing (position 0 = tip = newest, so an earlier row must have a
-  // smaller-or-equal position than a later row).
-  let committedConsistent = true;
-  outer: for (const b of branches) {
-    let lastPos = -1;
-    for (const row of byCommitted) {
-      const c = row.cells[b.name];
-      if (!c || c.pre_beginning) continue;
-      const pos = shaBranchPos[c.sha]?.[b.name] ?? -1;
-      if (pos < lastPos) { committedConsistent = false; break outer; }
-      lastPos = pos;
+  // Backward scan: a row is "displaced" if it has a larger git position (older commit)
+  // than something below it in the committed-time ordering — i.e., a recent rebase
+  // pushed it above its natural place. Only displaced rows switch to author time,
+  // leaving consistently-ordered rows on their committed timestamps.
+  const minFuturePos = {};
+  const displaced = new Set();
+  for (let i = byCommitted.length - 1; i >= 0; i--) {
+    const row = byCommitted[i];
+    for (const [bName, c] of Object.entries(row.cells)) {
+      if (c.pre_beginning) continue;
+      const pos = shaBranchPos[c.sha]?.[bName];
+      if (pos === undefined) continue;
+      const mfp = minFuturePos[bName] ?? Infinity;
+      if (pos > mfp) displaced.add(row);
+      if (pos < mfp) minFuturePos[bName] = pos;
     }
   }
 
-  if (committedConsistent) return byCommitted;
+  if (displaced.size === 0) return byCommitted;
 
-  // Fall back: sort by author time (more stable across branches for cherry-picked groups).
-  return rows.sort((a, b) => (b.timestamp - a.timestamp) || (a.gitOrder - b.gitOrder));
+  // Re-sort: displaced rows use author time; consistent rows keep committed time.
+  for (const row of byCommitted) {
+    row._key = displaced.has(row) ? row.timestamp : row.committedTs;
+  }
+  return byCommitted.sort((a, b) => (b._key - a._key) || (a.gitOrder - b.gitOrder));
 }
 
 // --- render ---
@@ -215,7 +220,7 @@ function makeCommitCard(c, row) {
   if (c.pre_beginning) editBtn.disabled = true;
   editBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    openEditDialog(c);
+    openEditDialog(c, e);
   });
 
   const hideBtn = document.createElement('button');
@@ -431,7 +436,7 @@ document.getElementById('diff-close').addEventListener('click', () =>
 // --- edit commit dialog ---
 let _editAmendments = []; // [{sha, branch}, ...]
 
-async function openEditDialog(c) {
+async function openEditDialog(c, clickEvent) {
   // Build the amendments list: this commit, plus all group members.
   _editAmendments = [];
   if (c.group_id) {
@@ -462,7 +467,23 @@ async function openEditDialog(c) {
     n === 1 ? `Updating 1 branch: ${names}` : `Updating ${n} branches: ${names}`;
   document.getElementById('edit-save').textContent = n === 1 ? 'Save' : `Save (${n} branches)`;
 
-  document.getElementById('edit-dialog').showModal();
+  const dlg = document.getElementById('edit-dialog');
+  dlg.showModal();
+
+  if (clickEvent) {
+    const gap = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const dlgW = dlg.offsetWidth;
+    const dlgH = dlg.offsetHeight;
+    let x = clickEvent.clientX + 16;
+    let y = clickEvent.clientY + 8;
+    if (x + dlgW + gap > vw) x = Math.max(gap, vw - dlgW - gap);
+    if (y + dlgH + gap > vh) y = Math.max(gap, vh - dlgH - gap);
+    dlg.style.margin = '0';
+    dlg.style.left = x + 'px';
+    dlg.style.top = y + 'px';
+  }
 }
 
 document.getElementById('edit-save').addEventListener('click', async () => {
