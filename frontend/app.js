@@ -27,11 +27,16 @@ function setConnected(ok) {
 
 // --- build rows ---
 // Returns an array of row objects sorted newest-first.
-// Each row: { groupId, colorIndex, cells: {branchName: commit|null}, timestamp }
+// Each row: { groupId, colorIndex, cells: {branchName: commit|null}, timestamp, committedTs }
+//
+// Sort strategy: prefer committed timestamp (ct) so recently-rebased/cherry-picked
+// work floats to the top. Fall back to author timestamp (at) when the ct ordering
+// contradicts the git-log order of any branch — which happens when cherry-picks were
+// applied in a different order than the commits were originally authored.
 function buildRows(state) {
   const { branches, groups } = state;
 
-  // sha → {branchName: commit, ...} — handles the same SHA appearing on multiple branches
+  // sha → {branchName: commit, ...}
   const shaByBranch = {};
   for (const b of branches) {
     for (const c of b.commits) {
@@ -40,12 +45,19 @@ function buildRows(state) {
     }
   }
 
-  // sha → minimum position index across all branches (0 = branch tip = newest)
+  // sha → min git position across all branches (0 = tip = newest)
   const shaPos = {};
+  // sha → per-branch git position, excluding pre_beginning ghosts
+  const shaBranchPos = {};
   for (const b of branches) {
-    for (let i = 0; i < b.commits.length; i++) {
-      const sha = b.commits[i].sha;
-      if (!(sha in shaPos) || i < shaPos[sha]) shaPos[sha] = i;
+    let pos = 0;
+    for (const c of b.commits) {
+      if (!c.pre_beginning) {
+        if (!(c.sha in shaPos) || pos < shaPos[c.sha]) shaPos[c.sha] = pos;
+        if (!shaBranchPos[c.sha]) shaBranchPos[c.sha] = {};
+        shaBranchPos[c.sha][b.name] = pos;
+        pos++;
+      }
     }
   }
 
@@ -56,6 +68,7 @@ function buildRows(state) {
   for (const group of groups) {
     const cells = {};
     let maxTs = 0;
+    let maxCt = 0;
     let minPos = Infinity;
     for (const sha of group.commit_shas) {
       const byBranch = shaByBranch[sha];
@@ -63,15 +76,16 @@ function buildRows(state) {
         for (const [branchName, c] of Object.entries(byBranch)) {
           cells[branchName] = c;
           maxTs = Math.max(maxTs, c.timestamp);
+          maxCt = Math.max(maxCt, c.committer_timestamp ?? c.timestamp);
         }
         if (sha in shaPos) minPos = Math.min(minPos, shaPos[sha]);
         usedShas.add(sha);
       }
     }
-    rows.push({ groupId: group.id, colorIndex: group.color_index, cells, timestamp: maxTs, gitOrder: minPos });
+    rows.push({ groupId: group.id, colorIndex: group.color_index, cells, timestamp: maxTs, committedTs: maxCt, gitOrder: minPos });
   }
 
-  // One row per unmatched commit, deduplicated by SHA so shared base commits appear once
+  // One row per unmatched commit, deduplicated by SHA
   const unmatchedBySha = {};
   for (const b of branches) {
     for (const c of b.commits) {
@@ -83,12 +97,35 @@ function buildRows(state) {
   }
   for (const [sha, byBranch] of Object.entries(unmatchedBySha)) {
     const maxTs = Math.max(...Object.values(byBranch).map(c => c.timestamp));
-    rows.push({ groupId: null, colorIndex: null, cells: byBranch, timestamp: maxTs, gitOrder: shaPos[sha] ?? Infinity });
+    const maxCt = Math.max(...Object.values(byBranch).map(c => c.committer_timestamp ?? c.timestamp));
+    rows.push({ groupId: null, colorIndex: null, cells: byBranch, timestamp: maxTs, committedTs: maxCt, gitOrder: shaPos[sha] ?? Infinity });
   }
 
-  // Sort newest-first; use git position as tiebreaker when timestamps are equal.
-  rows.sort((a, b) => (b.timestamp - a.timestamp) || (a.gitOrder - b.gitOrder));
-  return rows;
+  // Try sorting by committed time (newest first), tiebreak by git position.
+  const byCommitted = [...rows].sort(
+    (a, b) => (b.committedTs - a.committedTs) || (a.gitOrder - b.gitOrder)
+  );
+
+  // Verify that the committed-time ordering is consistent with each branch's git-log
+  // order: as we scan rows top-to-bottom, the position of each branch's commits must
+  // be non-decreasing (position 0 = tip = newest, so an earlier row must have a
+  // smaller-or-equal position than a later row).
+  let committedConsistent = true;
+  outer: for (const b of branches) {
+    let lastPos = -1;
+    for (const row of byCommitted) {
+      const c = row.cells[b.name];
+      if (!c || c.pre_beginning) continue;
+      const pos = shaBranchPos[c.sha]?.[b.name] ?? -1;
+      if (pos < lastPos) { committedConsistent = false; break outer; }
+      lastPos = pos;
+    }
+  }
+
+  if (committedConsistent) return byCommitted;
+
+  // Fall back: sort by author time (more stable across branches for cherry-picked groups).
+  return rows.sort((a, b) => (b.timestamp - a.timestamp) || (a.gitOrder - b.gitOrder));
 }
 
 // --- render ---

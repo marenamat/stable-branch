@@ -13,6 +13,7 @@ class Commit:
     color_index: int | None = None
     hidden: bool = False
     is_merge: bool = False
+    committer_timestamp: int = 0
     body: str = ""
     highlight_index: int | None = None
     issue_refs: list[str] = field(default_factory=list)

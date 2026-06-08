@@ -47,6 +47,7 @@ def test_commit_fields(wt, tmp_repo):
     assert c["title"]
     assert c["author"] == "Test Author <test@example.com>"
     assert isinstance(c["timestamp"], int)
+    assert isinstance(c["committer_timestamp"], int)
 
 
 # --- cherry-pick ---

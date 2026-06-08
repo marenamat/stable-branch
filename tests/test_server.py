@@ -55,7 +55,7 @@ def test_state_commit_has_expected_fields(client):
     data = client.get("/api/state").json()
     main = next(b for b in data["branches"] if b["name"] == "main")
     c = main["commits"][0]
-    for field in ("sha", "short_sha", "title", "author", "timestamp", "hidden", "is_merge", "refs"):
+    for field in ("sha", "short_sha", "title", "author", "timestamp", "committer_timestamp", "hidden", "is_merge", "refs"):
         assert field in c, f"missing field: {field}"
 
 

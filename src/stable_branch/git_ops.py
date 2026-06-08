@@ -56,7 +56,7 @@ class GitWorktree:
         # \x1e (ASCII 30, Record Separator) between commits; \x00 between fields.
         # %B is the full message (subject + body); %P is space-separated parent SHAs.
         r = self._git(
-            "log", "--format=%H%x00%s%x00%aN <%aE>%x00%at%x00%P%x00%B%x1e", rev_range,
+            "log", "--format=%H%x00%s%x00%aN <%aE>%x00%at%x00%ct%x00%P%x00%B%x1e", rev_range,
             cwd=self.repo,
         )
         commits = []
@@ -64,16 +64,17 @@ class GitWorktree:
             record = record.strip()
             if not record:
                 continue
-            parts = record.split("\x00", 5)
-            if len(parts) != 6:
+            parts = record.split("\x00", 6)
+            if len(parts) != 7:
                 continue
-            sha, title, author, ts, parents, body = parts
+            sha, title, author, ts, cts, parents, body = parts
             commits.append({
                 "sha": sha,
                 "short_sha": sha[:8],
                 "title": title,
                 "author": author,
                 "timestamp": int(ts),
+                "committer_timestamp": int(cts),
                 "is_merge": len(parents.split()) > 1,
                 "body": body.strip(),
             })
