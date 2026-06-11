@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>stable-branch — your release branches, all at once, in a browser</title>
+    <meta name="description" content="Browser UI for viewing and managing git history across multiple stable release branches simultaneously. Vibecoded. It works though.">
+    <meta property="og:title" content="stable-branch">
+    <meta property="og:description" content="Browser UI for managing git history across multiple stable release branches. Vibecoded. PRs welcome (also vibecoded).">
+    <meta property="og:image" content="stable-branch-releasing-in-bird.png">
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg:        #0d1117;
+            --bg-card:   #161b22;
+            --bg-card2:  #1c2330;
+            --text:      #e6edf3;
+            --muted:     #8b949e;
+            --border:    #30363d;
+            --red:       #e74c3c;
+            --orange:    #e6801a;
+            --yellow:    #f1c40f;
+            --green:     #2ecc71;
+            --teal:      #1abc9c;
+            --blue:      #3498db;
+            --purple:    #9b59b6;
+            --pink:      #e91e63;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: "Comic Sans MS", "Comic Sans", cursive;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.65;
+            font-size: 18px;
+        }
+
+        /* monospace exception — Comic Sans in a code block is a crime */
+        code, pre { font-family: "Courier New", Courier, monospace; }
+
+        /* ── NAV ── */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(13, 17, 23, 0.93);
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            height: 58px;
+        }
+
+        .nav-logo {
+            font-size: 1.15rem;
+            font-weight: bold;
+            color: var(--text);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .branch-dots {
+            display: flex;
+            gap: 5px;
+        }
+
+        .branch-dots span {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .nav-github {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-family: "Comic Sans MS", "Comic Sans", cursive;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .nav-github:hover { border-color: var(--blue); background: var(--bg-card2); }
+
+        /* ── HERO ── */
+        .hero {
+            text-align: center;
+            padding: 100px 2rem 90px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 700px;
+            height: 700px;
+            background: radial-gradient(ellipse, rgba(52,152,219,0.07) 0%, transparent 68%);
+            pointer-events: none;
+        }
+
+        .hero h1 {
+            font-size: clamp(1.9rem, 5vw, 3.4rem);
+            line-height: 1.25;
+            margin-bottom: 1.4rem;
+        }
+
+        .hero h1 .pain {
+            color: var(--red);
+            text-decoration: underline wavy var(--red);
+            text-underline-offset: 7px;
+        }
+
+        .hero .subtitle {
+            font-size: clamp(1rem, 2.5vw, 1.25rem);
+            color: var(--muted);
+            max-width: 580px;
+            margin: 0 auto 2.5rem;
+        }
+
+        .hero .subtitle strong {
+            color: var(--yellow);
+            font-weight: normal;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 13px 30px;
+            background: var(--blue);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 7px;
+            font-size: 1.05rem;
+            font-family: "Comic Sans MS", "Comic Sans", cursive;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+        }
+        .btn:hover { background: #2183bf; transform: translateY(-2px); }
+        .btn-ghost {
+            background: transparent;
+            border: 2px solid var(--purple);
+            color: var(--purple);
+        }
+        .btn-ghost:hover { background: rgba(155,89,182,0.12); }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(18px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .hero h1      { animation: fadeUp 0.55s ease both; }
+        .hero .subtitle { animation: fadeUp 0.55s 0.1s ease both; }
+        .hero .btn      { animation: fadeUp 0.55s 0.2s ease both; }
+
+        /* ── SHARED SECTION ── */
+        .section { padding: 72px 2rem; }
+        .section-alt { background: var(--bg-card); border-top: 2px solid var(--border); border-bottom: 2px solid var(--border); }
+        .container { max-width: 860px; margin: 0 auto; }
+
+        h2.section-title {
+            font-size: clamp(1.5rem, 3.5vw, 2.1rem);
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        .section-lead {
+            text-align: center;
+            color: var(--muted);
+            margin-bottom: 40px;
+            font-size: 1rem;
+        }
+
+        /* ── MEME CARDS ── */
+        .meme-wrap { display: flex; justify-content: center; }
+
+        /* Drake two-panel */
+        .meme-drake {
+            width: 100%;
+            max-width: 600px;
+            border: 3px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transform: rotate(-1.2deg);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.55);
+            transition: transform 0.25s;
+        }
+        .meme-drake:hover { transform: rotate(0deg) scale(1.015); }
+
+        .drake-panel {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            padding: 22px 22px;
+            min-height: 88px;
+        }
+        .drake-no  { background: #261414; border-bottom: 2px solid var(--border); }
+        .drake-yes { background: #14261a; }
+
+        .drake-emoji { font-size: 2.4rem; flex-shrink: 0; width: 52px; text-align: center; }
+
+        .drake-text { font-size: 0.98rem; color: var(--text); }
+        .drake-no .drake-text {
+            color: var(--muted);
+            text-decoration: line-through;
+            text-decoration-color: var(--red);
+        }
+
+        /* "This is fine" */
+        .meme-fire {
+            width: 100%;
+            max-width: 560px;
+            background: #221200;
+            border: 3px solid var(--orange);
+            border-radius: 12px;
+            padding: 32px 24px;
+            text-align: center;
+            transform: rotate(0.9deg);
+            box-shadow: 0 10px 40px rgba(230,128,26,0.22);
+            transition: transform 0.25s;
+        }
+        .meme-fire:hover { transform: rotate(0deg); }
+
+        .fire-row { font-size: 2.2rem; letter-spacing: 6px; margin-bottom: 8px; }
+        .fire-caption { color: #f0b840; font-size: 1rem; font-style: italic; line-height: 1.5; }
+
+        /* Closing meme */
+        .meme-closing {
+            width: 100%;
+            max-width: 500px;
+            background: var(--bg-card2);
+            border: 3px solid var(--purple);
+            border-radius: 12px;
+            padding: 32px 28px;
+            text-align: center;
+            transform: rotate(-0.6deg);
+            box-shadow: 0 10px 40px rgba(155,89,182,0.2);
+            transition: transform 0.25s;
+        }
+        .meme-closing:hover { transform: rotate(0deg); }
+
+        /* ── SCREENSHOT ── */
+        .screenshot-section { padding: 60px 2rem; }
+
+        .screenshot-frame {
+            position: relative;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .screenshot-frame img {
+            width: 100%;
+            border-radius: 8px;
+            border: 2px solid var(--border);
+            box-shadow: 0 20px 80px rgba(0,0,0,0.7);
+            display: block;
+        }
+
+        .screenshot-caption {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.92rem;
+            font-style: italic;
+            margin-top: 18px;
+        }
+
+        /* ── FEATURES GRID ── */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+            gap: 22px;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+            transition: transform 0.18s, border-color 0.18s;
+        }
+        .feature-card:hover { transform: translateY(-4px); }
+        .feature-card:nth-child(1) { border-top: 4px solid var(--blue);   }
+        .feature-card:nth-child(2) { border-top: 4px solid var(--green);  }
+        .feature-card:nth-child(3) { border-top: 4px solid var(--yellow); }
+        .feature-card:nth-child(4) { border-top: 4px solid var(--purple); }
+        .feature-card:nth-child(1):hover { border-color: var(--blue);   }
+        .feature-card:nth-child(2):hover { border-color: var(--green);  }
+        .feature-card:nth-child(3):hover { border-color: var(--yellow); }
+        .feature-card:nth-child(4):hover { border-color: var(--purple); }
+
+        .feature-icon { font-size: 1.9rem; margin-bottom: 12px; }
+        .feature-card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+        .feature-card p  { color: var(--muted); font-size: 0.93rem; line-height: 1.55; }
+
+        /* ── INSTALL ── */
+        .install-section { padding: 72px 2rem; }
+
+        .code-block {
+            background: #090d12;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 22px 24px 22px;
+            position: relative;
+            overflow-x: auto;
+            max-width: 640px;
+            margin: 0 auto 14px;
+        }
+        .code-block pre {
+            font-size: 0.97rem;
+            line-height: 1.8;
+            white-space: pre;
+            color: var(--green);
+        }
+        .code-block pre .cm  { color: var(--muted); }   /* comment */
+        .code-block pre .kw  { color: var(--blue);  }   /* keyword/command */
+        .code-block pre .arg { color: var(--yellow); }  /* argument */
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--bg-card2);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-family: "Comic Sans MS", "Comic Sans", cursive;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .copy-btn:hover { color: var(--text); border-color: var(--blue); }
+        .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+        .install-hint {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.88rem;
+            margin-top: 10px;
+        }
+        .install-hint code { color: var(--green); font-size: 0.88rem; }
+
+        /* ── FOOTER ── */
+        footer {
+            padding: 36px 2rem;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.88rem;
+            border-top: 1px solid var(--border);
+        }
+        footer a { color: var(--blue); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 600px) {
+            .meme-drake, .meme-fire, .meme-closing { transform: none !important; }
+            .section { padding: 56px 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+    <a href="#" class="nav-logo">
+        <span class="branch-dots">
+            <span style="background:#e74c3c"></span>
+            <span style="background:#2ecc71"></span>
+            <span style="background:#3498db"></span>
+        </span>
+        stable-branch
+    </a>
+    <a class="nav-github" href="https://github.com/marenamat/stable-branch" target="_blank" rel="noopener">
+        ⭐ GitHub
+    </a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+    <div class="container">
+        <h1>
+            Managing stable release branches<br>
+            is a <span class="pain">special kind of pain</span>.
+        </h1>
+        <p class="subtitle">
+            Every bugfix. Every security patch.
+            <strong>Five branches.</strong><br>
+            Good luck remembering which commits landed where.
+        </p>
+        <a href="#screenshot" class="btn">Show me the thing ↓</a>
+    </div>
+</section>
+
+<!-- MEME 1: Drake -->
+<div class="section" style="padding-top:0; padding-bottom:64px;">
+    <div class="meme-wrap">
+        <div class="meme-drake">
+            <div class="drake-panel drake-no">
+                <div class="drake-emoji">😒</div>
+                <div class="drake-text">
+                    git cherry-pick a3f91b &rarr; git checkout stable/v1 &rarr; git cherry-pick a3f91b &rarr; git checkout stable/v2 &rarr; git cherry-pick a3f91b &rarr; <em>wait which one did I miss</em>
+                </div>
+            </div>
+            <div class="drake-panel drake-yes">
+                <div class="drake-emoji">😌</div>
+                <div class="drake-text" style="font-size:1.3rem;">
+                    drag
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SCREENSHOT -->
+<section class="section section-alt screenshot-section" id="screenshot">
+    <div class="container">
+        <h2 class="section-title">this is stable-branch</h2>
+        <p class="section-lead">it's not much, but it's honest work</p>
+        <div class="screenshot-frame">
+            <img src="stable-branch-releasing-in-bird.png"
+                 alt="stable-branch showing BIRD router project with multiple branch columns, matched commits highlighted in matching colors">
+        </div>
+        <p class="screenshot-caption">
+            actual screenshot from the BIRD Internet Routing Daemon project.<br>
+            yes, those are real commits. yes, that maintainer is fine now.
+        </p>
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section">
+    <div class="container">
+        <h2 class="section-title">what it actually does</h2>
+        <p class="section-lead">besides making you feel slightly less overwhelmed</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎨</div>
+                <h3>same commit, five branches, one color</h3>
+                <p>commits that are the same logical change are automatically detected and shown in matching colors across all branch columns. you can finally see what's missing where.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🖱️</div>
+                <h3>drag to cherry-pick</h3>
+                <p>drag a commit card to another branch column to cherry-pick it there. drag within a column to reorder. queue up multiple moves — they run in order with progress labels. conflicts show you the full git output.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🫥</div>
+                <h3>collapse the noise</h3>
+                <p>click − to hide a commit. it folds into a thin strip you can click to peek inside. auto-hide merge commits. filter by headers in commit bodies. hidden state persists across restarts.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">✏️</div>
+                <h3>fix the message everywhere</h3>
+                <p>edit a commit's message or author with ✎. if the same logical commit lives on N branches, one Save updates all of them simultaneously. because forgetting to update the commit message on stable/v3 is embarrassing.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- MEME 2: This is fine -->
+<div class="section" style="padding-top:0; padding-bottom:72px;">
+    <div class="meme-wrap">
+        <div class="meme-fire">
+            <div class="fire-row">🔥 🐶 ☕ 🔥</div>
+            <div class="fire-row" style="font-size:1.5rem; letter-spacing:10px;">🖥️ 🖥️ 🖥️ 🖥️</div>
+            <p class="fire-caption">
+                "me, four terminal windows open, trying to remember<br>
+                if I cherry-picked that security fix onto stable/v2"
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- INSTALL -->
+<section class="section section-alt install-section">
+    <div class="container">
+        <h2 class="section-title">install &amp; run</h2>
+        <p class="section-lead">requires Python 3.12+. that's it. no Electron, no npm, no demons.</p>
+
+        <div class="code-block" id="cb1">
+            <button class="copy-btn" onclick="copyBlock('cb1')">copy</button>
+            <pre><span class="cm"># get it</span>
+<span class="kw">git clone</span> <span class="arg">https://github.com/marenamat/stable-branch</span>
+<span class="kw">cd</span> stable-branch
+<span class="kw">python -m venv</span> .venv &amp;&amp; <span class="kw">source</span> .venv/bin/activate
+<span class="kw">pip install</span> -e .
+
+<span class="cm"># run it</span>
+<span class="kw">stable-branch</span> <span class="arg">/path/to/repo</span> main stable/v1 stable/v2</pre>
+        </div>
+
+        <p class="install-hint">
+            opens a browser tab automatically &mdash; pass <code>--no-open</code> if you hate convenience.<br>
+            all git mutations run in a detached worktree. your working tree is never touched.
+        </p>
+    </div>
+</section>
+
+<!-- MEME 3: Closing -->
+<div class="section" style="padding-bottom:80px;">
+    <div class="meme-wrap">
+        <div class="meme-closing">
+            <p style="font-size:2rem; margin-bottom:10px;">🤖</p>
+            <p style="font-size:1.15rem; margin-bottom:8px;">it's vibecoded.</p>
+            <p style="color:var(--muted); margin-bottom:24px; font-size:0.95rem;">
+                not much code review was done.<br>
+                <em>pull requests welcome. also vibecoded ones.</em>
+            </p>
+            <a class="btn btn-ghost" href="https://github.com/marenamat/stable-branch" target="_blank" rel="noopener">
+                → github
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+    <p>
+        <a href="https://github.com/marenamat/stable-branch">stable-branch</a>
+        &nbsp;&middot;&nbsp;
+        GNU GPL
+        &nbsp;&middot;&nbsp;
+        <a href="https://github.com/marenamat/stable-branch/blob/main/CONTRIBUTING.md">contributing</a>
+    </p>
+</footer>
+
+<script>
+function copyBlock(id) {
+    const pre = document.getElementById(id).querySelector('pre');
+    // strip HTML tags to get plain text
+    const tmp = document.createElement('div');
+    tmp.innerHTML = pre.innerHTML;
+    const text = tmp.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById(id).querySelector('.copy-btn');
+        btn.textContent = 'copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
+    });
+}
+</script>
+
+</body>
+</html>
